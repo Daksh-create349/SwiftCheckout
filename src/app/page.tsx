@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Image from 'next/image';
 import { ProductInputForm } from '@/components/billing/ProductInputForm';
 import { ItemList } from '@/components/billing/ItemList';
@@ -10,12 +10,13 @@ import { DiscountTaxForm } from '@/components/billing/DiscountTaxForm';
 import { CrossSellSuggestions } from '@/components/billing/CrossSellSuggestions';
 import { PaymentModal } from '@/components/billing/PaymentModal';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import type { CartItem } from '@/types/billing'; // Product type might be less relevant here now
+import type { CartItem } from '@/types/billing';
 import { getCrossSellSuggestions, type CrossSellSuggestionInput } from '@/ai/flows/cross-sell-suggestion';
-import { Zap, AlertTriangle, CheckCircle, ShoppingBag } from 'lucide-react';
+import { generateBillImage, type GenerateBillImageInput } from '@/ai/flows/generate-bill-image-flow';
+import { Zap, AlertTriangle, CheckCircle, ShoppingBag, Printer, Loader2 } from 'lucide-react';
 
 export default function SwiftCheckoutPage() {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
@@ -26,8 +27,11 @@ export default function SwiftCheckoutPage() {
   const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState<boolean>(false);
   const [isBillFinalized, setIsBillFinalized] = useState<boolean>(false);
+  const [billImageDataUri, setBillImageDataUri] = useState<string | null>(null);
+  const [isGeneratingBillImage, setIsGeneratingBillImage] = useState<boolean>(false);
 
   const { toast } = useToast();
+  const billImageRef = useRef<HTMLImageElement>(null);
 
   const calculateSubtotal = useCallback(() => {
     return cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
@@ -83,17 +87,12 @@ export default function SwiftCheckoutPage() {
 
   const handleAddItem = (name: string, price: number, quantity: number, originalPrice: number) => {
     setCartItems(prevItems => {
-      // For simplicity, identified items are always new entries. 
-      // Future enhancement: Check if an item with the same name exists and offer to increment quantity.
       const newItemId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-      
-      // Check if item with the same name already exists, if so, update quantity and price
       const existingItemIndex = prevItems.findIndex(item => item.name.toLowerCase() === name.toLowerCase());
 
       if (existingItemIndex > -1) {
         const updatedItems = [...prevItems];
         updatedItems[existingItemIndex].quantity += quantity;
-        // Optionally update price if new price is different or always use new price
         updatedItems[existingItemIndex].price = price; 
         updatedItems[existingItemIndex].originalPrice = originalPrice;
         toast({ title: "Item Updated", description: `${name} quantity increased.`, className: "bg-green-500 text-white" });
@@ -102,7 +101,7 @@ export default function SwiftCheckoutPage() {
          toast({ title: "Item Added", description: `${name} added to bill.`, className: "bg-green-500 text-white" });
         return [...prevItems, { 
           id: newItemId,
-          productId: name, // Using name as productId, or could be a generated ID
+          productId: name, 
           name: name, 
           price: price, 
           quantity,
@@ -135,7 +134,7 @@ export default function SwiftCheckoutPage() {
     toast({ title: "Tax Updated", description: `Tax rate set to ${percentage}%.` });
   };
 
-  const handleFinalizeBill = () => {
+  const handleFinalizeBill = async () => {
     if (cartItems.length === 0) {
       toast({
         variant: "destructive",
@@ -144,8 +143,60 @@ export default function SwiftCheckoutPage() {
       });
       return;
     }
+
+    setIsGeneratingBillImage(true);
+    setBillImageDataUri(null); // Clear previous image
+
+    try {
+      const billImageInput: GenerateBillImageInput = {
+        storeName: "SwiftCheckout",
+        items: cartItems.map(item => ({
+          name: item.name,
+          quantity: item.quantity,
+          price: item.price,
+          total: item.price * item.quantity,
+        })),
+        subtotal,
+        discountPercentage,
+        discountAmount,
+        taxPercentage,
+        taxAmount,
+        grandTotal,
+        currentDate: new Date().toLocaleDateString(),
+      };
+      const result = await generateBillImage(billImageInput);
+      setBillImageDataUri(result.billImageDataUri);
+      toast({ title: "Bill Image Generated", description: "The bill image is ready for printing.", className: "bg-green-500 text-white" });
+    } catch (error) {
+      console.error("Error generating bill image:", error);
+      toast({
+        variant: "destructive",
+        title: "Image Generation Failed",
+        description: (error as Error).message || "Could not generate bill image.",
+      });
+    } finally {
+      setIsGeneratingBillImage(false);
+    }
+    
     setIsBillFinalized(true);
     setIsPaymentModalOpen(true);
+  };
+
+  const handlePrintBill = () => {
+    const printWindow = window.open('', '_blank');
+    if (printWindow && billImageDataUri) {
+      printWindow.document.write(`
+        <html>
+          <head><title>Print Bill</title></head>
+          <body style="margin:0; padding:0; display:flex; justify-content:center; align-items:center; min-height:100vh;">
+            <img src="${billImageDataUri}" style="max-width:100%; max-height:100vh; object-fit:contain;" onload="window.print(); setTimeout(window.close, 100);" />
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+    } else {
+      toast({ variant: "destructive", title: "Print Error", description: "Could not open print window or no bill image found." });
+    }
   };
 
   const handlePaymentSelect = (method: string) => {
@@ -155,6 +206,7 @@ export default function SwiftCheckoutPage() {
     setTaxPercentage(0);
     setCrossSellSuggestions([]);
     setIsBillFinalized(false);
+    setBillImageDataUri(null);
 
     toast({
       title: "Payment Processed",
@@ -176,10 +228,15 @@ export default function SwiftCheckoutPage() {
               variant="default"
               className="bg-accent hover:bg-accent/80 text-accent-foreground" 
               onClick={handleFinalizeBill}
-              disabled={cartItems.length === 0 || isBillFinalized}
+              disabled={cartItems.length === 0 || isBillFinalized || isGeneratingBillImage}
               aria-label="Finalize Bill and Proceed to Payment"
             >
-              <CheckCircle className="mr-2 h-5 w-5" /> Finalize Bill
+              {isGeneratingBillImage ? (
+                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+              ) : (
+                <CheckCircle className="mr-2 h-5 w-5" />
+              )}
+              {isGeneratingBillImage ? "Generating Bill..." : "Finalize Bill"}
             </Button>
           </div>
         </Card>
@@ -194,7 +251,26 @@ export default function SwiftCheckoutPage() {
              <Card className="p-6 text-center bg-green-50 border-green-200 shadow-md">
               <CheckCircle className="h-12 w-12 text-green-600 mx-auto mb-2" />
               <h2 className="text-xl font-semibold text-green-700 font-headline">Bill Finalized</h2>
-              <p className="text-green-600">Proceed to payment or review summary.</p>
+              {isGeneratingBillImage && <p className="text-muted-foreground">Generating bill image...</p>}
+              {!isGeneratingBillImage && billImageDataUri && (
+                <div className="mt-4">
+                  <h3 className="text-lg font-medium mb-2">Generated Bill Image:</h3>
+                  <Image 
+                    ref={billImageRef}
+                    src={billImageDataUri} 
+                    alt="Generated Bill" 
+                    width={400} 
+                    height={600} 
+                    className="rounded-md border shadow-sm mx-auto"
+                    data-ai-hint="receipt bill"
+                  />
+                  <Button onClick={handlePrintBill} className="mt-4 bg-primary hover:bg-primary/90">
+                    <Printer className="mr-2 h-5 w-5" /> Print Bill
+                  </Button>
+                </div>
+              )}
+              {!isGeneratingBillImage && !billImageDataUri && <p className="text-red-600">Could not generate bill image. Proceed to payment.</p>}
+              {isGeneratingBillImage ? null : <p className="text-green-600 mt-2">Proceed to payment or review summary.</p>}
             </Card>
           )}
           <ItemList items={cartItems} onRemoveItem={handleRemoveItem} onUpdateQuantity={handleUpdateQuantity} />
