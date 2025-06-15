@@ -11,12 +11,12 @@ import { CrossSellSuggestions } from '@/components/billing/CrossSellSuggestions'
 import { PaymentModal } from '@/components/billing/PaymentModal';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from '@/hooks/use-toast';
 import type { CartItem } from '@/types/billing';
 import { getCrossSellSuggestions, type CrossSellSuggestionInput } from '@/ai/flows/cross-sell-suggestion';
 import { generateBillImage, type GenerateBillImageInput } from '@/ai/flows/generate-bill-image-flow';
-import { Zap, AlertTriangle, CheckCircle, ShoppingBag, Printer, Loader2 } from 'lucide-react';
+import { Zap, AlertTriangle, CheckCircle, Printer, Loader2, CreditCard } from 'lucide-react';
 
 export default function SwiftCheckoutPage() {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
@@ -145,7 +145,7 @@ export default function SwiftCheckoutPage() {
     }
 
     setIsGeneratingBillImage(true);
-    setBillImageDataUri(null); // Clear previous image
+    setBillImageDataUri(null);
 
     try {
       const billImageInput: GenerateBillImageInput = {
@@ -166,7 +166,7 @@ export default function SwiftCheckoutPage() {
       };
       const result = await generateBillImage(billImageInput);
       setBillImageDataUri(result.billImageDataUri);
-      toast({ title: "Bill Image Generated", description: "The bill image is ready for printing.", className: "bg-green-500 text-white" });
+      toast({ title: "Bill Image Generated", description: "The bill image is ready.", className: "bg-green-500 text-white" });
     } catch (error) {
       console.error("Error generating bill image:", error);
       toast({
@@ -179,6 +179,10 @@ export default function SwiftCheckoutPage() {
     }
     
     setIsBillFinalized(true);
+    //setIsPaymentModalOpen(true); // We will now open modal via a separate button
+  };
+
+  const handleProceedToPayment = () => {
     setIsPaymentModalOpen(true);
   };
 
@@ -229,14 +233,14 @@ export default function SwiftCheckoutPage() {
               className="bg-accent hover:bg-accent/80 text-accent-foreground" 
               onClick={handleFinalizeBill}
               disabled={cartItems.length === 0 || isBillFinalized || isGeneratingBillImage}
-              aria-label="Finalize Bill and Proceed to Payment"
+              aria-label="Finalize Bill"
             >
-              {isGeneratingBillImage ? (
+              {isGeneratingBillImage && !isBillFinalized ? ( // Show loader only when initially generating
                 <Loader2 className="mr-2 h-5 w-5 animate-spin" />
               ) : (
                 <CheckCircle className="mr-2 h-5 w-5" />
               )}
-              {isGeneratingBillImage ? "Generating Bill..." : "Finalize Bill"}
+              {isGeneratingBillImage && !isBillFinalized ? "Generating..." : "Finalize Bill"}
             </Button>
           </div>
         </Card>
@@ -248,10 +252,17 @@ export default function SwiftCheckoutPage() {
             <ProductInputForm onAddItem={handleAddItem} />
           )}
           {isBillFinalized && cartItems.length > 0 && (
-             <Card className="p-6 text-center bg-green-50 border-green-200 shadow-md">
+             <Card className="p-6 text-center bg-card border-border shadow-md">
               <CheckCircle className="h-12 w-12 text-green-600 mx-auto mb-2" />
               <h2 className="text-xl font-semibold text-green-700 font-headline">Bill Finalized</h2>
-              {isGeneratingBillImage && <p className="text-muted-foreground">Generating bill image...</p>}
+              
+              {isGeneratingBillImage && (
+                <div className="my-4">
+                  <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
+                  <p className="text-muted-foreground mt-2">Generating bill image...</p>
+                </div>
+              )}
+
               {!isGeneratingBillImage && billImageDataUri && (
                 <div className="mt-4">
                   <h3 className="text-lg font-medium mb-2">Generated Bill Image:</h3>
@@ -269,8 +280,25 @@ export default function SwiftCheckoutPage() {
                   </Button>
                 </div>
               )}
-              {!isGeneratingBillImage && !billImageDataUri && <p className="text-red-600">Could not generate bill image. Proceed to payment.</p>}
-              {isGeneratingBillImage ? null : <p className="text-green-600 mt-2">Proceed to payment or review summary.</p>}
+              {!isGeneratingBillImage && !billImageDataUri && (
+                <Alert variant="destructive" className="mt-4">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertTitle>Image Generation Failed</AlertTitle>
+                    <AlertDescription>
+                        Could not generate bill image. You can still proceed to payment.
+                    </AlertDescription>
+                </Alert>
+              )}
+              
+              {!isGeneratingBillImage && (
+                <Button 
+                    onClick={handleProceedToPayment} 
+                    className="mt-6 bg-green-600 hover:bg-green-700 text-white"
+                    size="lg"
+                >
+                    <CreditCard className="mr-2 h-5 w-5" /> Proceed to Payment
+                </Button>
+              )}
             </Card>
           )}
           <ItemList items={cartItems} onRemoveItem={handleRemoveItem} onUpdateQuantity={handleUpdateQuantity} />
@@ -312,3 +340,5 @@ export default function SwiftCheckoutPage() {
     </div>
   );
 }
+
+    
