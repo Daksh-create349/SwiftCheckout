@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Barcode, DollarSign, PlusCircle, XCircle, Camera, Zap, AlertTriangleIcon } from 'lucide-react';
 import type { Product } from '@/types/billing';
 import { MOCK_PRODUCTS_LIST, MOCK_PRODUCTS_MAP } from '@/lib/mockData';
@@ -85,14 +85,24 @@ export function ProductInputForm({ onAddItem }: ProductInputFormProps) {
   }, [foundProduct, overridePrice, setValue]);
 
   const requestCameraPermission = useCallback(async () => {
-    setCameraError(null);
+    setCameraError(null); // Reset error at the beginning of a request
+    setHasCameraPermission(null); // Reset permission status
+
+    if (!videoRef.current && isCameraMode) { // Check if videoRef is available when in camera mode
+        console.error("Video element not rendered yet.");
+        setCameraError("Video element not ready. Please try toggling camera mode again.");
+        setHasCameraPermission(false);
+        toast({ variant: "destructive", title: "Internal Error", description: "Video element not ready." });
+        return;
+    }
+
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       setCameraError("Camera API is not supported by your browser.");
       setHasCameraPermission(false);
-      setIsCameraMode(false);
       toast({ variant: "destructive", title: "Camera Error", description: "Camera API not supported." });
       return;
     }
+
     try {
       const mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
       setStream(mediaStream);
@@ -102,39 +112,57 @@ export function ProductInputForm({ onAddItem }: ProductInputFormProps) {
       }
     } catch (error) {
       console.error('Error accessing camera:', error);
-      setHasCameraPermission(false);
-      const errorMsg = (error as Error).name === 'NotAllowedError' ? 'Camera permission was denied. Please enable it in your browser settings.' : 'Could not access the camera.';
+      const errorName = (error as Error).name;
+      let errorMsg = 'Could not access the camera. Please ensure it is not in use by another application.';
+      if (errorName === 'NotAllowedError') {
+        errorMsg = 'Camera permission was denied. Please enable it in your browser settings.';
+      } else if (errorName === 'NotFoundError') {
+        errorMsg = 'No camera was found. Please ensure a camera is connected and enabled.';
+      } else if (errorName === 'NotReadableError') {
+        errorMsg = 'The camera is currently in use by another application or a hardware error occurred.';
+      }
+      
       setCameraError(errorMsg);
+      setHasCameraPermission(false);
       toast({
         variant: 'destructive',
-        title: 'Camera Access Denied',
+        title: 'Camera Access Error',
         description: errorMsg,
       });
-      setIsCameraMode(false);
     }
-  }, [toast]);
+  }, [toast, isCameraMode]); // Added isCameraMode to deps
 
-  const handleToggleCameraMode = () => {
-    if (!isCameraMode) {
-      setIsCameraMode(true);
+  useEffect(() => {
+    if (isCameraMode) {
       requestCameraPermission();
     } else {
-      stream?.getTracks().forEach(track => track.stop());
-      setStream(null);
-      setIsCameraMode(false);
-      setHasCameraPermission(null);
+      // Cleanup when camera mode is turned off
+      if (stream) {
+          stream.getTracks().forEach(track => track.stop());
+          setStream(null);
+      }
+      setHasCameraPermission(null); 
       setCameraError(null);
     }
-  };
-  
-  useEffect(() => {
-    return () => { // Cleanup stream on component unmount
-      stream?.getTracks().forEach(track => track.stop());
+
+    // Cleanup stream on component unmount or if stream/isCameraMode changes
+    return () => {
+      if (stream) {
+          stream.getTracks().forEach(track => track.stop());
+      }
     };
-  }, [stream]);
+  }, [isCameraMode, requestCameraPermission]); // stream removed from deps to avoid re-running requestCameraPermission if only stream changes. stream specific cleanup is above.
+
+
+  const handleToggleCameraMode = () => {
+    setIsCameraMode(prevIsCameraMode => !prevIsCameraMode);
+  };
 
   const handleCaptureAndIdentify = async () => {
-    if (!videoRef.current || !canvasRef.current) return;
+    if (!videoRef.current || !canvasRef.current || !stream || !hasCameraPermission) {
+       toast({ variant: "destructive", title: "Capture Error", description: "Camera not ready or permission denied." });
+       return;
+    }
     setIsIdentifying(true);
     setCameraError(null);
 
@@ -160,7 +188,6 @@ export function ProductInputForm({ onAddItem }: ProductInputFormProps) {
 
       if (result.matchFoundInDB && result.productId) {
         setValue('productCode', result.productId);
-        // The useEffect for productCode will handle setting foundProduct and price
         toast({ title: "Product Identified & Found", description: `${result.name} details populated.` });
       } else {
         toast({ 
@@ -174,21 +201,19 @@ export function ProductInputForm({ onAddItem }: ProductInputFormProps) {
       toast({ variant: "destructive", title: "AI Error", description: (error as Error).message || "Failed to identify product." });
     } finally {
       setIsIdentifying(false);
-      // Optionally close camera after identification
-      // handleToggleCameraMode(); 
     }
   };
 
 
   const onSubmit: SubmitHandler<ProductInputFormValues> = (data) => {
-    const productToSubmit = MOCK_PRODUCTS_MAP.get(data.productCode); // Re-fetch to ensure it's from the map
+    const productToSubmit = MOCK_PRODUCTS_MAP.get(data.productCode);
     if (productToSubmit) {
       const priceToUse = data.overridePrice && data.manualPrice !== undefined ? data.manualPrice : productToSubmit.price;
       onAddItem(productToSubmit, data.quantity, priceToUse);
       reset();
       setFoundProduct(null);
       setFocus('productCode');
-      if(isCameraMode) handleToggleCameraMode(); // Close camera after successful add
+      if(isCameraMode) handleToggleCameraMode(); 
     } else {
       toast({
         variant: "destructive",
@@ -209,18 +234,12 @@ export function ProductInputForm({ onAddItem }: ProductInputFormProps) {
             <Camera className="mr-2 h-4 w-4" /> {isCameraMode ? 'Close Camera' : 'Scan with Camera'}
           </Button>
         </div>
-        {isCameraMode && !hasCameraPermission && cameraError && (
-            <Alert variant="destructive" className="mt-4">
-              <AlertTriangleIcon className="h-4 w-4" />
-              <AlertTitle>Camera Error</AlertTitle>
-              <AlertDescription>{cameraError}</AlertDescription>
-            </Alert>
-        )}
       </CardHeader>
       <CardContent>
-        {isCameraMode && hasCameraPermission === true && (
+        {isCameraMode ? (
           <div className="mb-4 p-4 border rounded-md bg-muted/30">
             <h3 className="text-lg font-medium mb-2 text-center">Camera View</h3>
+            
             <div className="relative aspect-video bg-slate-800 rounded-md overflow-hidden">
               <video ref={videoRef} className="w-full h-full object-cover" autoPlay playsInline muted />
               {isIdentifying && (
@@ -232,14 +251,28 @@ export function ProductInputForm({ onAddItem }: ProductInputFormProps) {
                  </div>
               )}
             </div>
-            <Button onClick={handleCaptureAndIdentify} disabled={isIdentifying} className="w-full mt-4 bg-primary hover:bg-primary/90">
-              {isIdentifying ? 'Processing...' : 'Capture & Identify Product'}
+
+            {/* Alert for camera permission issues or errors */}
+            {(hasCameraPermission === false || (hasCameraPermission === null && cameraError)) && (
+              <Alert variant="destructive" className="mt-4">
+                <AlertTriangleIcon className="h-4 w-4" />
+                <AlertTitle>{cameraError && hasCameraPermission !== false ? "Camera Error" : "Camera Access Required"}</AlertTitle>
+                <AlertDescription>
+                  {cameraError || "Please enable camera permissions in your browser settings and ensure it's not in use by another application."}
+                </AlertDescription>
+              </Alert>
+            )}
+            
+            <Button 
+              onClick={handleCaptureAndIdentify} 
+              disabled={isIdentifying || hasCameraPermission !== true} 
+              className="w-full mt-4 bg-primary hover:bg-primary/90"
+            >
+              {isIdentifying ? 'Processing...' : (hasCameraPermission !== true ? 'Grant Camera Permission' : 'Capture & Identify Product')}
             </Button>
             <canvas ref={canvasRef} className="hidden"></canvas>
           </div>
-        )}
-
-        {!isCameraMode && (
+        ) : (
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
             <div className="space-y-2">
               <Label htmlFor="productCode" className="font-medium">Product Code</Label>
