@@ -1,3 +1,4 @@
+
 "use client";
 
 import React from 'react';
@@ -11,27 +12,27 @@ import { Input } from '../ui/input';
 
 interface ItemListProps {
   items: CartItem[];
-  onRemoveItem: (productId: string) => void;
-  onUpdateQuantity: (productId: string, newQuantity: number) => void;
+  onRemoveItem: (itemId: string) => void;
+  onUpdateQuantity: (itemId: string, newQuantity: number) => void;
 }
 
 export function ItemList({ items, onRemoveItem, onUpdateQuantity }: ItemListProps) {
   
-  const handleQuantityChange = (productId: string, currentQuantity: number, change: number) => {
+  const handleQuantityChange = (itemId: string, currentQuantity: number, change: number) => {
     const newQuantity = currentQuantity + change;
     if (newQuantity >= 1) {
-      onUpdateQuantity(productId, newQuantity);
+      onUpdateQuantity(itemId, newQuantity);
     } else if (newQuantity === 0) {
-      onRemoveItem(productId); // Or show confirmation
+      onRemoveItem(itemId); 
     }
   };
 
-  const handleManualQuantityInput = (productId: string, value: string) => {
+  const handleManualQuantityInput = (itemId: string, value: string) => {
     const newQuantity = parseInt(value, 10);
     if (!isNaN(newQuantity) && newQuantity >= 1) {
-      onUpdateQuantity(productId, newQuantity);
+      onUpdateQuantity(itemId, newQuantity);
     } else if (!isNaN(newQuantity) && newQuantity <= 0) {
-       onRemoveItem(productId); // Or show confirmation for 0
+       onRemoveItem(itemId);
     }
   };
 
@@ -47,7 +48,7 @@ export function ItemList({ items, onRemoveItem, onUpdateQuantity }: ItemListProp
         <ScrollArea className="h-[calc(100%-0px)] sm:h-[300px] md:h-[400px] lg:h-[calc(100vh-450px)] min-h-[200px]">
           {items.length === 0 ? (
             <div className="flex items-center justify-center h-full p-6">
-              <p className="text-muted-foreground">No items added yet.</p>
+              <p className="text-muted-foreground">Scan products using the camera to add them.</p>
             </div>
           ) : (
             <Table>
@@ -62,7 +63,7 @@ export function ItemList({ items, onRemoveItem, onUpdateQuantity }: ItemListProp
               </TableHeader>
               <TableBody>
                 {items.map((item) => (
-                  <TableRow key={item.productId} className="animate-fade-in">
+                  <TableRow key={item.id} className="animate-fade-in">
                     <TableCell className="font-medium">{item.name}</TableCell>
                     <TableCell className="text-center">
                       <div className="flex items-center justify-center space-x-1">
@@ -70,7 +71,7 @@ export function ItemList({ items, onRemoveItem, onUpdateQuantity }: ItemListProp
                           variant="ghost" 
                           size="icon" 
                           className="h-7 w-7"
-                          onClick={() => handleQuantityChange(item.productId, item.quantity, -1)}
+                          onClick={() => handleQuantityChange(item.id, item.quantity, -1)}
                           aria-label={`Decrease quantity of ${item.name}`}
                         >
                           <Minus className="h-4 w-4" />
@@ -78,7 +79,7 @@ export function ItemList({ items, onRemoveItem, onUpdateQuantity }: ItemListProp
                         <Input
                           type="number"
                           value={item.quantity.toString()}
-                          onChange={(e) => handleManualQuantityInput(item.productId, e.target.value)}
+                          onChange={(e) => handleManualQuantityInput(item.id, e.target.value)}
                           className="w-12 h-8 text-center appearance-none [-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           min="1"
                           aria-label={`Quantity of ${item.name}`}
@@ -87,7 +88,7 @@ export function ItemList({ items, onRemoveItem, onUpdateQuantity }: ItemListProp
                           variant="ghost" 
                           size="icon" 
                           className="h-7 w-7"
-                          onClick={() => handleQuantityChange(item.productId, item.quantity, 1)}
+                          onClick={() => handleQuantityChange(item.id, item.quantity, 1)}
                           aria-label={`Increase quantity of ${item.name}`}
                         >
                           <Plus className="h-4 w-4" />
@@ -101,7 +102,7 @@ export function ItemList({ items, onRemoveItem, onUpdateQuantity }: ItemListProp
                         variant="ghost"
                         size="icon"
                         className="text-destructive hover:text-destructive/80 h-8 w-8"
-                        onClick={() => onRemoveItem(item.productId)}
+                        onClick={() => onRemoveItem(item.id)}
                         aria-label={`Remove ${item.name} from bill`}
                       >
                         <Trash2 className="h-4 w-4" />

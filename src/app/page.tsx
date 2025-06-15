@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -12,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import type { Product, CartItem } from '@/types/billing';
+import type { CartItem } from '@/types/billing'; // Product type might be less relevant here now
 import { getCrossSellSuggestions, type CrossSellSuggestionInput } from '@/ai/flows/cross-sell-suggestion';
 import { Zap, AlertTriangle, CheckCircle, ShoppingBag } from 'lucide-react';
 
@@ -76,43 +77,50 @@ export default function SwiftCheckoutPage() {
   useEffect(() => {
     const debounceTimer = setTimeout(() => {
       fetchCrossSellSuggestions();
-    }, 500); // Debounce AI calls
+    }, 500); 
     return () => clearTimeout(debounceTimer);
   }, [cartItems, fetchCrossSellSuggestions]);
 
-  const handleAddItem = (product: Product, quantity: number, manualPrice?: number) => {
+  const handleAddItem = (name: string, price: number, quantity: number, originalPrice: number) => {
     setCartItems(prevItems => {
-      const existingItemIndex = prevItems.findIndex(item => item.productId === product.id);
-      const priceToUse = manualPrice !== undefined ? manualPrice : product.price;
+      // For simplicity, identified items are always new entries. 
+      // Future enhancement: Check if an item with the same name exists and offer to increment quantity.
+      const newItemId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+      
+      // Check if item with the same name already exists, if so, update quantity and price
+      const existingItemIndex = prevItems.findIndex(item => item.name.toLowerCase() === name.toLowerCase());
 
       if (existingItemIndex > -1) {
         const updatedItems = [...prevItems];
         updatedItems[existingItemIndex].quantity += quantity;
-        updatedItems[existingItemIndex].price = priceToUse; // Update price if overridden
-        updatedItems[existingItemIndex].originalPrice = product.price;
+        // Optionally update price if new price is different or always use new price
+        updatedItems[existingItemIndex].price = price; 
+        updatedItems[existingItemIndex].originalPrice = originalPrice;
+        toast({ title: "Item Updated", description: `${name} quantity increased.`, className: "bg-green-500 text-white" });
         return updatedItems;
       } else {
+         toast({ title: "Item Added", description: `${name} added to bill.`, className: "bg-green-500 text-white" });
         return [...prevItems, { 
-          productId: product.id, 
-          name: product.name, 
-          price: priceToUse, 
+          id: newItemId,
+          productId: name, // Using name as productId, or could be a generated ID
+          name: name, 
+          price: price, 
           quantity,
-          originalPrice: product.price,
+          originalPrice: originalPrice,
         }];
       }
     });
-    toast({ title: "Item Added", description: `${product.name} added to bill.`, className: "bg-green-500 text-white" });
   };
 
-  const handleRemoveItem = (productId: string) => {
-    setCartItems(prevItems => prevItems.filter(item => item.productId !== productId));
+  const handleRemoveItem = (itemId: string) => {
+    setCartItems(prevItems => prevItems.filter(item => item.id !== itemId));
     toast({ title: "Item Removed", description: `Item removed from bill.`, variant: "destructive" });
   };
   
-  const handleUpdateQuantity = (productId: string, newQuantity: number) => {
+  const handleUpdateQuantity = (itemId: string, newQuantity: number) => {
     setCartItems(prevItems => 
       prevItems.map(item => 
-        item.productId === productId ? { ...item, quantity: newQuantity } : item
+        item.id === itemId ? { ...item, quantity: newQuantity } : item
       )
     );
   };
@@ -142,7 +150,6 @@ export default function SwiftCheckoutPage() {
 
   const handlePaymentSelect = (method: string) => {
     setIsPaymentModalOpen(false);
-    // Reset for new bill
     setCartItems([]);
     setDiscountPercentage(0);
     setTaxPercentage(0);
@@ -179,7 +186,6 @@ export default function SwiftCheckoutPage() {
       </header>
 
       <main className="flex-grow grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
-        {/* Left Column: Product Input and Item List */}
         <section className="lg:col-span-2 flex flex-col gap-6 md:gap-8">
           {!isBillFinalized && (
             <ProductInputForm onAddItem={handleAddItem} />
@@ -194,7 +200,6 @@ export default function SwiftCheckoutPage() {
           <ItemList items={cartItems} onRemoveItem={handleRemoveItem} onUpdateQuantity={handleUpdateQuantity} />
         </section>
 
-        {/* Right Column: Totals, Adjustments, Suggestions */}
         <section className="lg:col-span-1 flex flex-col gap-6 md:gap-8">
           <TotalsDisplay 
             subtotal={subtotal} 
