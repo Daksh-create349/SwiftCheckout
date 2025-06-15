@@ -1,3 +1,4 @@
+
 "use client";
 
 import React from 'react';
@@ -41,12 +42,9 @@ export function DiscountTaxForm({ onApplyDiscount, onApplyTax, currentDiscount, 
 
 
   const onSubmit = (data: DiscountTaxFormValues) => {
-    if (data.discountPercentage !== undefined) {
-      onApplyDiscount(data.discountPercentage);
-    }
-    if (data.taxPercentage !== undefined) {
-      onApplyTax(data.taxPercentage);
-    }
+    // Provide 0 if undefined, as onApplyDiscount/Tax expect numbers
+    onApplyDiscount(data.discountPercentage ?? 0);
+    onApplyTax(data.taxPercentage ?? 0);
   };
   
   return (
@@ -69,8 +67,20 @@ export function DiscountTaxForm({ onApplyDiscount, onApplyTax, currentDiscount, 
                 <Input 
                   id="discountPercentage" 
                   type="number" 
-                  {...field}
-                  onChange={e => field.onChange(parseFloat(e.target.value))}
+                  // Spread name, onBlur, ref. Handle value and onChange manually.
+                  name={field.name}
+                  onBlur={field.onBlur}
+                  ref={field.ref}
+                  value={field.value === undefined ? '' : field.value}
+                  onChange={e => {
+                    const rawValue = e.target.value;
+                    if (rawValue === '') {
+                      field.onChange(undefined);
+                    } else {
+                      const numValue = parseFloat(rawValue);
+                      field.onChange(isNaN(numValue) ? undefined : numValue);
+                    }
+                  }}
                   placeholder="e.g. 10 for 10%" 
                   min="0" max="100"
                   aria-label="Discount Percentage"
@@ -90,8 +100,19 @@ export function DiscountTaxForm({ onApplyDiscount, onApplyTax, currentDiscount, 
                 <Input 
                   id="taxPercentage" 
                   type="number" 
-                  {...field}
-                  onChange={e => field.onChange(parseFloat(e.target.value))}
+                  name={field.name}
+                  onBlur={field.onBlur}
+                  ref={field.ref}
+                  value={field.value === undefined ? '' : field.value}
+                  onChange={e => {
+                    const rawValue = e.target.value;
+                    if (rawValue === '') {
+                      field.onChange(undefined);
+                    } else {
+                      const numValue = parseFloat(rawValue);
+                      field.onChange(isNaN(numValue) ? undefined : numValue);
+                    }
+                  }}
                   placeholder="e.g. 5 for 5%" 
                   min="0" max="100"
                   aria-label="Tax Percentage"
@@ -107,3 +128,4 @@ export function DiscountTaxForm({ onApplyDiscount, onApplyTax, currentDiscount, 
     </Card>
   );
 }
+
