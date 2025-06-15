@@ -13,10 +13,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from '@/hooks/use-toast';
+import { ToastAction } from "@/components/ui/toast";
 import type { CartItem } from '@/types/billing';
 import { getCrossSellSuggestions, type CrossSellSuggestionInput } from '@/ai/flows/cross-sell-suggestion';
 import { generateBillImage, type GenerateBillImageInput } from '@/ai/flows/generate-bill-image-flow';
-import { Zap, AlertTriangle, CheckCircle, Printer, Loader2, CreditCard } from 'lucide-react';
+import { Zap, AlertTriangle, CheckCircle, Printer, Loader2, CreditCard, Download } from 'lucide-react';
 
 export default function SwiftCheckoutPage() {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
@@ -145,7 +146,7 @@ export default function SwiftCheckoutPage() {
     }
 
     setIsGeneratingBillImage(true);
-    setBillImageDataUri(null);
+    setBillImageDataUri(null); // Clear previous image if any
 
     try {
       const billImageInput: GenerateBillImageInput = {
@@ -179,10 +180,17 @@ export default function SwiftCheckoutPage() {
     }
     
     setIsBillFinalized(true);
-    //setIsPaymentModalOpen(true); // We will now open modal via a separate button
   };
 
   const handleProceedToPayment = () => {
+    if (cartItems.length === 0) {
+        toast({ variant: "destructive", title: "Empty Bill", description: "Cannot proceed to payment with an empty bill." });
+        return;
+    }
+    if (!isBillFinalized) {
+        toast({ variant: "destructive", title: "Bill Not Finalized", description: "Please finalize the bill first." });
+        return;
+    }
     setIsPaymentModalOpen(true);
   };
 
@@ -204,18 +212,39 @@ export default function SwiftCheckoutPage() {
   };
 
   const handlePaymentSelect = (method: string) => {
+    const currentBillImage = billImageDataUri; // Capture before reset
+    const paidGrandTotal = grandTotal; // Capture before reset
+
     setIsPaymentModalOpen(false);
     setCartItems([]);
     setDiscountPercentage(0);
     setTaxPercentage(0);
     setCrossSellSuggestions([]);
     setIsBillFinalized(false);
-    setBillImageDataUri(null);
+    setBillImageDataUri(null); 
+    // Subtotal, discountAmount, taxAmount, grandTotal will auto-update via useEffect
 
     toast({
       title: "Payment Processed",
-      description: `Payment of $${grandTotal.toFixed(2)} via ${method.replace('_', ' ')} successful. New bill started.`,
-      className: "bg-primary text-primary-foreground"
+      description: `Payment of $${paidGrandTotal.toFixed(2)} via ${method.replace('_', ' ')} successful. New bill started.`,
+      className: "bg-primary text-primary-foreground",
+      duration: 7000, // Give more time for the download action
+      action: currentBillImage ? (
+        <ToastAction
+          altText="Download Bill"
+          onClick={() => {
+            const link = document.createElement('a');
+            link.href = currentBillImage;
+            link.download = `SwiftCheckout-Bill-${Date.now()}.png`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+          }}
+          className="bg-accent hover:bg-accent/90 text-accent-foreground"
+        >
+          <Download className="mr-2 h-4 w-4" /> Download Bill
+        </ToastAction>
+      ) : undefined,
     });
   };
 
@@ -235,7 +264,7 @@ export default function SwiftCheckoutPage() {
               disabled={cartItems.length === 0 || isBillFinalized || isGeneratingBillImage}
               aria-label="Finalize Bill"
             >
-              {isGeneratingBillImage && !isBillFinalized ? ( // Show loader only when initially generating
+              {isGeneratingBillImage && !isBillFinalized ? (
                 <Loader2 className="mr-2 h-5 w-5 animate-spin" />
               ) : (
                 <CheckCircle className="mr-2 h-5 w-5" />
@@ -280,7 +309,7 @@ export default function SwiftCheckoutPage() {
                   </Button>
                 </div>
               )}
-              {!isGeneratingBillImage && !billImageDataUri && (
+              {!isGeneratingBillImage && !billImageDataUri && cartItems.length > 0 && (
                 <Alert variant="destructive" className="mt-4">
                     <AlertTriangle className="h-4 w-4" />
                     <AlertTitle>Image Generation Failed</AlertTitle>
@@ -290,7 +319,7 @@ export default function SwiftCheckoutPage() {
                 </Alert>
               )}
               
-              {!isGeneratingBillImage && (
+              {!isGeneratingBillImage && cartItems.length > 0 && (
                 <Button 
                     onClick={handleProceedToPayment} 
                     className="mt-6 bg-green-600 hover:bg-green-700 text-white"
@@ -340,5 +369,6 @@ export default function SwiftCheckoutPage() {
     </div>
   );
 }
+    
 
     
