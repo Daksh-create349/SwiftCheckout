@@ -212,7 +212,7 @@ export default function SwiftCheckoutPage() {
     setIsPaymentModalOpen(true);
   };
 
-  const handlePrintBill = () => {
+ const handlePrintBill = () => {
     const printWindow = window.open('', '_blank');
     if (printWindow && billImageDataUri) {
       printWindow.document.write(
@@ -290,69 +290,96 @@ export default function SwiftCheckoutPage() {
     }
     lastScrollTimeRef.current = now;
 
-    const beta = event.beta;
+    const beta = event.beta; // Front-to-back tilt in degrees
 
-    if (beta === null) return;
+    if (beta === null) return; // Sensor data not available
 
+    // Check if the tilt exceeds the threshold
     if (Math.abs(beta) > TILT_THRESHOLD_VERTICAL) {
       let scrollAmount = (Math.abs(beta) - TILT_THRESHOLD_VERTICAL) * SCROLL_SENSITIVITY_VERTICAL;
-      if (beta < 0) {
-        scrollAmount = -scrollAmount;
+      if (beta < 0) { // Tilting forward (top of device away from user)
+        scrollAmount = -scrollAmount; // Scroll up
       }
+      // Tilting backward (top of device towards user) scrolls down (positive scrollAmount)
       window.scrollBy(0, scrollAmount);
     }
-  }, [isSensorScrollingEnabled]);
+  }, [isSensorScrollingEnabled]); // Dependencies
 
+  const requestAndAddListener = useCallback(async () => {
+    setSensorError(null); // Reset error at the beginning of an attempt
 
-  useEffect(() => {
-    const requestAndAddListener = async () => {
-      setSensorError(null);
-      if (typeof (DeviceOrientationEvent as any).requestPermission === 'function' && !permissionRequestedRef.current) {
-        try {
-          const permissionState = await (DeviceOrientationEvent as any).requestPermission();
-          permissionRequestedRef.current = true;
-          if (permissionState !== 'granted') {
-            setSensorError("Permission for device orientation not granted.");
-            toast({ variant: "destructive", title: "Sensor Error", description: "Permission for device orientation not granted." });
-            setIsSensorScrollingEnabled(false);
-            return;
-          }
-        } catch (error) {
-          console.error("Error requesting device orientation permission:", error);
-          setSensorError("Failed to request device orientation permission.");
-          toast({ variant: "destructive", title: "Sensor Error", description: "Failed to request device orientation permission." });
+    if (typeof window.DeviceOrientationEvent === 'undefined') {
+      const errorMsg = "Device orientation sensors are not supported by this browser.";
+      setSensorError(errorMsg);
+      toast({ variant: "destructive", title: "Sensor Error", description: errorMsg });
+      setIsSensorScrollingEnabled(false); // Ensure switch is off
+      return;
+    }
+
+    // For iOS Safari and potentially other browsers requiring explicit permission
+    if (typeof (DeviceOrientationEvent as any).requestPermission === 'function' && !permissionRequestedRef.current) {
+      try {
+        const permissionState = await (DeviceOrientationEvent as any).requestPermission();
+        permissionRequestedRef.current = true; // Mark that permission has been requested
+        if (permissionState !== 'granted') {
+          const errorMsg = "Permission for device orientation not granted.";
+          setSensorError(errorMsg);
+          toast({ variant: "destructive", title: "Sensor Error", description: errorMsg });
           setIsSensorScrollingEnabled(false);
           return;
         }
-      }
-
-      if (window.DeviceOrientationEvent) {
-        window.addEventListener('deviceorientation', handleOrientation);
-        toast({ title: "Sensor Scrolling Enabled", description: "Tilt your device to scroll." });
-      } else {
-        setSensorError("Device orientation sensors not supported on this browser.");
-        toast({ variant: "destructive", title: "Sensor Error", description: "Device orientation sensors not supported." });
+      } catch (error) {
+        console.error("Error requesting device orientation permission:", error);
+        const errorMsg = "Failed to request device orientation permission. It might be blocked by your browser or OS settings.";
+        setSensorError(errorMsg);
+        toast({ variant: "destructive", title: "Sensor Error", description: errorMsg });
         setIsSensorScrollingEnabled(false);
+        return;
       }
-    };
+    } else {
+      // For other browsers, or if permission was already requested/granted in this session
+      // Setting permissionRequestedRef.current to true here if not using requestPermission API,
+      // assumes the browser will handle prompts or has existing permissions.
+      if (typeof (DeviceOrientationEvent as any).requestPermission !== 'function') {
+          permissionRequestedRef.current = true;
+      }
+    }
+    
+    // Add event listener if we have (or assume we have) permission
+    window.addEventListener('deviceorientation', handleOrientation);
+    toast({ title: "Sensor Scrolling Enabled", description: "Tilt your device to scroll. If it doesn't work, your device may lack sensors or browser support." });
 
+  }, [handleOrientation, toast]); // requestAndAddListener dependencies
+
+
+  useEffect(() => {
     if (isSensorScrollingEnabled) {
       requestAndAddListener();
+    } else {
+      // Cleanup when sensor scrolling is disabled
+      window.removeEventListener('deviceorientation', handleOrientation);
+      // If we turned it off, reset error message, but keep permissionRequestedRef as is for the session
+      // unless we want to re-prompt every time. For now, permission is session-based.
+      setSensorError(null); 
     }
 
     return () => {
-      if (window.DeviceOrientationEvent) {
-        window.removeEventListener('deviceorientation', handleOrientation);
-      }
+      // Cleanup on component unmount
+      window.removeEventListener('deviceorientation', handleOrientation);
     };
-  }, [isSensorScrollingEnabled, handleOrientation, toast]);
+  }, [isSensorScrollingEnabled, requestAndAddListener, handleOrientation]);
 
 
   const handleToggleSensorScrolling = (checked: boolean) => {
     setIsSensorScrollingEnabled(checked);
-    if (!checked) {
-      setSensorError(null);
+    if (checked) {
+      // Reset permission requested flag only if explicitly re-enabling
+      // to allow the permission prompt to show again if it was denied previously
+      // and the browser supports re-prompting or if it's a new attempt.
       permissionRequestedRef.current = false;
+      setSensorError(null); // Clear previous errors on new attempt
+    } else {
+      setSensorError(null); // Clear error when user manually disables
     }
   };
 
@@ -376,6 +403,8 @@ export default function SwiftCheckoutPage() {
                         id="sensor-scrolling-switch"
                         checked={isSensorScrollingEnabled}
                         onCheckedChange={handleToggleSensorScrolling}
+                        // Disable switch if there's an error message and it's currently enabled,
+                        // or if it's just errored out during an attempt to enable.
                         disabled={!!sensorError && isSensorScrollingEnabled}
                         aria-label="Toggle sensor-based scrolling"
                     />
@@ -410,11 +439,11 @@ export default function SwiftCheckoutPage() {
             </div>
           </div>
         </Card>
-          {sensorError && isSensorScrollingEnabled && (
+          {sensorError && ( // Display sensor error prominently if it exists, regardless of switch state after an attempt.
              <Alert variant="destructive" className="mt-2">
                 <AlertTriangle className="h-4 w-4" />
                 <AlertTitle>Sensor Scrolling Error</AlertTitle>
-                <AlertDescription>{sensorError} This feature has been disabled.</AlertDescription>
+                <AlertDescription>{sensorError} This feature may be unavailable or has been disabled.</AlertDescription>
             </Alert>
         )}
       </header>
@@ -524,5 +553,3 @@ export default function SwiftCheckoutPage() {
     </div>
   );
 }
-
-    
