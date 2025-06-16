@@ -16,7 +16,6 @@ import { identifyProductFromImage, type IdentifyProductInput, type IdentifyProdu
 import { getProductPriceByName, type GetProductPriceByNameInput, type GetProductPriceByNameOutput } from '@/ai/flows/get-product-price-by-name-flow';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
-// Removed ZXing imports
 
 
 const FormSchema = z.object({
@@ -69,7 +68,6 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
-  // Removed codeReaderRef and activeReaderIsDecodingRef
 
 
   const stopCameraStream = useCallback(() => {
@@ -147,14 +145,10 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
       setCameraError(null);
       setIsIdentifying(false); 
     }
-    // Cleanup function
     return () => {
         stopCameraStream();
     };
-  }, [isCameraMode, requestCameraPermission, stopCameraStream]);
-
-
-  // Removed useEffect hook for barcode scanning
+  }, [isCameraMode]); // Simplified dependency array
 
 
   const handleCaptureAndIdentify = async () => {
@@ -341,7 +335,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
     if (isCameraMode) handleToggleCameraMode();
   }
 
-  const anyAILoading = isIdentifying || isFetchingManualPrice; // Removed isProcessingBarcode
+  const anyAILoading = isIdentifying || isFetchingManualPrice;
   const cameraActiveAndReady = isCameraMode && hasCameraPermission === true && stream;
 
 
@@ -364,8 +358,8 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
             {cameraActiveAndReady && <p className="text-center text-sm text-muted-foreground mb-2">Position the product and use the button below to identify.</p>}
             
             <div className="relative aspect-video bg-slate-800 rounded-md overflow-hidden">
-               <video ref={videoRef} className="w-full h-full object-cover" playsInline muted autoPlay />
-              {isIdentifying && cameraActiveAndReady && ( // Only show loader for image identification
+               <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
+              {isIdentifying && cameraActiveAndReady && ( 
                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70">
                     <Zap className="h-12 w-12 text-primary animate-pulse mb-2" />
                     <p className="text-primary-foreground font-semibold">
@@ -453,7 +447,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
             )}
              {!identifiedProduct && !isCameraMode && !anyAILoading && (
                  <div className="text-center py-4 text-muted-foreground border-t border-dashed mt-4 pt-4">
-                    <Barcode className="mx-auto h-8 w-8 mb-2 opacity-50"/> {/* Keeping barcode icon for visual cue */}
+                    <Barcode className="mx-auto h-8 w-8 mb-2 opacity-50"/>
                     <p className="text-xs">Or use 'Scan with Camera' for image identification.</p>
                 </div>
             )}
@@ -562,3 +556,4 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
     </Card>
   );
 }
+
