@@ -68,7 +68,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
 
   const [isCameraMode, setIsCameraMode] = useState(false);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
-  const [isIdentifying, setIsIdentifying] = useState(false); 
+  const [isIdentifying, setIsIdentifying] = useState(false);
   const [isFetchingManualPrice, setIsFetchingManualPrice] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -115,23 +115,9 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
     }
   }, [stream]);
 
-  const handleToggleCameraMode = useCallback(() => {
-    setIsCameraMode(prevIsCameraMode => {
-      const nextIsCameraMode = !prevIsCameraMode;
-      if (nextIsCameraMode) {
-        setIdentifiedProduct(null); // This will also clear image via useEffect
-        reset({ manualProductName: '', quantity: 1, overridePrice: false, manualPrice: undefined });
-      } else {
-        stopCameraStream();
-      }
-      return nextIsCameraMode;
-    });
-  }, [setIsCameraMode, setIdentifiedProduct, reset, stopCameraStream]);
-
-
   const requestCameraPermission = useCallback(async () => {
     setCameraError(null);
-    setHasCameraPermission(null); 
+    setHasCameraPermission(null);
 
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       const errorMsg = "Camera API is not supported by your browser.";
@@ -144,7 +130,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
     try {
       const mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
       setStream(mediaStream);
-      setHasCameraPermission(true); 
+      setHasCameraPermission(true);
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
         videoRef.current.onloadedmetadata = () => {
@@ -152,7 +138,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
              videoRef.current.play().catch(e => {
                 console.error("Video play failed:", e);
                 setCameraError("Video playback failed. Check browser permissions or ensure no other app is using the camera.");
-                setHasCameraPermission(false); 
+                setHasCameraPermission(false);
              });
            }
         };
@@ -168,24 +154,29 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
       setCameraError(errorMsg);
       setHasCameraPermission(false);
       toast({ variant: 'destructive', title: 'Camera Access Error', description: errorMsg });
-      stopCameraStream(); 
+      stopCameraStream();
     }
-  }, [toast, stopCameraStream]); 
+  }, [toast, stopCameraStream]);
 
 
+  // Combined effect for camera lifecycle and form reset on activation
   useEffect(() => {
     if (isCameraMode) {
+      setIdentifiedProduct(null);
+      clearProductImageStates();
+      reset({ manualProductName: '', quantity: 1, overridePrice: false, manualPrice: undefined });
       requestCameraPermission();
     } else {
       stopCameraStream();
-      // No need to set hasCameraPermission to null if it was false due to an error
-      // setHasCameraPermission(null); 
       setCameraError(null);
-      setIsIdentifying(false); 
+      setIsIdentifying(false);
     }
-    // No return cleanup needed here as stopCameraStream is called when isCameraMode becomes false
-    // or when component unmounts (implicitly by its own cleanup if necessary)
-  }, [isCameraMode]); // Effect relies only on isCameraMode to trigger camera setup/teardown
+  }, [isCameraMode, reset, setIdentifiedProduct, requestCameraPermission, stopCameraStream, clearProductImageStates]);
+
+
+  const handleToggleCameraMode = useCallback(() => {
+    setIsCameraMode(prevIsCameraMode => !prevIsCameraMode);
+  }, [setIsCameraMode]);
 
 
   const handleCaptureAndIdentify = async () => {
@@ -194,9 +185,11 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
        return;
     }
     
-    setIsIdentifying(true); 
+    setIsIdentifying(true);
     setCameraError(null);
-    setIdentifiedProduct(null); // Clear previous product, which also clears image
+    setIdentifiedProduct(null); 
+    clearProductImageStates();
+
 
     const video = videoRef.current;
     const canvas = canvasRef.current;
@@ -225,7 +218,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
         triggerProductImageGeneration(result.name);
       }
       
-      handleToggleCameraMode(); // Close camera after successful identification
+      setIsCameraMode(false); // Close camera after successful identification
       setFocus('quantity');
     } catch (error) {
       console.error("Error identifying product:", error);
@@ -244,14 +237,16 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
       return;
     }
     setIsFetchingManualPrice(true);
-    setIdentifiedProduct(null); // Clear previous product, which also clears image
+    setIdentifiedProduct(null); 
+    clearProductImageStates();
+
 
     try {
       const result = await getProductPriceByName({ productName, currencyCode: selectedCurrencyCode });
-      setIdentifiedProduct({ name: result.name, price: result.price }); 
+      setIdentifiedProduct({ name: result.name, price: result.price });
       setValue('manualPrice', result.price);
       setValue('overridePrice', false);
-      setValue('manualProductName', result.name); 
+      setValue('manualProductName', result.name);
       toast({
         title: "AI Price Fetched",
         description: `Product: ${result.name}. AI Price: ${selectedCurrencySymbol}${result.price.toFixed(2)}. Adjust if needed.`
@@ -282,13 +277,12 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
     if (
       previousCurrencyCodeRef.current !== selectedCurrencyCode &&
       currentProductName &&
-      !isCameraMode && 
+      !isCameraMode &&
       !isIdentifying &&
       !isFetchingManualPrice &&
-      !overrideIsChecked 
+      !overrideIsChecked
     ) {
       const reFetchPriceForNewCurrency = async () => {
-        // We don't set isFetchingManualPrice here to avoid hiding the image preview during re-fetch
         try {
           toast({
             title: "Currency Changed",
@@ -296,20 +290,16 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
           });
           const result = await getProductPriceByName({ productName: currentProductName, currencyCode: selectedCurrencyCode });
           if (getValues('manualProductName') === currentProductName || identifiedProduct?.name === currentProductName) {
-            setIdentifiedProduct({ name: result.name, price: result.price }); // This keeps image if name is same
+            setIdentifiedProduct({ name: result.name, price: result.price });
             setValue('manualPrice', result.price);
-            setValue('manualProductName', result.name); 
+            setValue('manualProductName', result.name);
             toast({
               title: "Price Updated",
               description: `AI Price for ${result.name} is now ${selectedCurrencySymbol}${result.price.toFixed(2)}.`
             });
-            // Optionally re-trigger image generation if name changed or if desired
-            // For now, we assume if the name is the same, the image is still relevant.
-            // If product name from AI changes slightly, image might need refresh:
             if (identifiedProduct.name !== result.name && result.name) {
                  triggerProductImageGeneration(result.name);
             }
-
           } else {
              toast({
               title: "Price Update Skipped",
@@ -323,23 +313,24 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
             title: "AI Pricing Error",
             description: (apiError as Error).message || `Could not update price for '${currentProductName}' in ${selectedCurrencyCode}. Previous price retained.`
           });
-        } 
+        }
       };
       reFetchPriceForNewCurrency();
     }
     previousCurrencyCodeRef.current = selectedCurrencyCode;
   }, [
-    selectedCurrencyCode, 
-    selectedCurrencySymbol, 
-    identifiedProduct, 
-    isCameraMode, 
-    isIdentifying, 
-    isFetchingManualPrice, 
-    setValue, 
-    getValues, 
+    selectedCurrencyCode,
+    selectedCurrencySymbol,
+    identifiedProduct,
+    isCameraMode,
+    isIdentifying,
+    isFetchingManualPrice,
+    setValue,
+    getValues,
     toast,
     setIdentifiedProduct,
-    triggerProductImageGeneration
+    triggerProductImageGeneration,
+    overridePrice
   ]);
 
 
@@ -380,14 +371,16 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
     onAddItem(currentProductName, priceToUse, data.quantity, identifiedProduct?.price ?? priceToUse);
 
     reset();
-    setIdentifiedProduct(null); // This will also clear image via useEffect
-    if (isCameraMode) handleToggleCameraMode(); 
+    setIdentifiedProduct(null); 
+    clearProductImageStates();
+    if (isCameraMode) setIsCameraMode(false);
   };
 
   const handleClearForm = () => {
     reset();
-    setIdentifiedProduct(null); // This will also clear image via useEffect
-    if (isCameraMode) handleToggleCameraMode();
+    setIdentifiedProduct(null);
+    clearProductImageStates();
+    if (isCameraMode) setIsCameraMode(false);
   }
 
   const anyAILoading = isIdentifying || isFetchingManualPrice || isGeneratingProductImage;
@@ -414,7 +407,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
             
             <div className="relative aspect-video bg-slate-800 rounded-md overflow-hidden">
                <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
-              {isIdentifying && cameraActiveAndReady && ( 
+              {isIdentifying && cameraActiveAndReady && (
                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70">
                     <Zap className="h-12 w-12 text-primary animate-pulse mb-2" />
                     <p className="text-primary-foreground font-semibold">
@@ -426,7 +419,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
               )}
             </div>
 
-            {hasCameraPermission === false && cameraError && ( 
+            {hasCameraPermission === false && cameraError && (
               <Alert variant="destructive" className="mt-4">
                 <AlertTriangleIcon className="h-4 w-4" />
                 <AlertTitle>Camera Access Issue</AlertTitle>
@@ -436,7 +429,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
                 </AlertDescription>
               </Alert>
             )}
-             {hasCameraPermission === null && !cameraError && ( 
+             {hasCameraPermission === null && !cameraError && (
                  <div className="mt-4 text-center">
                     <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
                     <p className="text-muted-foreground mt-2">Requesting camera permission...</p>
@@ -445,7 +438,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
 
             <Button
               onClick={handleCaptureAndIdentify}
-              disabled={isIdentifying || !cameraActiveAndReady} // Simplified disabling logic
+              disabled={isIdentifying || !cameraActiveAndReady}
               className="w-full mt-4 bg-primary hover:bg-primary/90"
               aria-label="Capture image and identify product"
             >
@@ -476,7 +469,8 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
                             onChange={(e) => {
                                 field.onChange(e);
                                 if (identifiedProduct && e.target.value !== identifiedProduct.name) {
-                                    setIdentifiedProduct(null); // Clear if manual name deviates
+                                    setIdentifiedProduct(null); 
+                                    clearProductImageStates();
                                 }
                             }}
                             />
@@ -544,7 +538,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
                     <p className="text-xs">Or use 'Scan with Camera' for image identification.</p>
                 </div>
             )}
-            {(isFetchingManualPrice && !isCameraMode) && ( // Show only price fetching loader if not camera mode and not image generating
+            {(isFetchingManualPrice && !isCameraMode) && ( 
                 <div className="text-center py-4">
                     <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
                     <p className="text-muted-foreground mt-2">
