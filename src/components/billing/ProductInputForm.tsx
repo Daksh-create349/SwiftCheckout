@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import Image from 'next/image';
 import { useForm, SubmitHandler, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -14,6 +15,7 @@ import { PlusCircle, XCircle, Camera, Zap, AlertTriangleIcon, ScanSearch, Barcod
 import { useToast } from '@/hooks/use-toast';
 import { identifyProductFromImage, type IdentifyProductInput, type IdentifyProductOutput } from '@/ai/flows/identify-product-flow';
 import { getProductPriceByName, type GetProductPriceByNameInput, type GetProductPriceByNameOutput } from '@/ai/flows/get-product-price-by-name-flow';
+import { generateProductImageByName, type GenerateProductImageByNameInput, type GenerateProductImageByNameOutput } from '@/ai/flows/generate-product-image-flow';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -36,6 +38,10 @@ interface ProductInputFormProps {
 export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurrencySymbol }: ProductInputFormProps) {
   const { toast } = useToast();
   const [identifiedProduct, setIdentifiedProduct] = useState<IdentifyProductOutput | null>(null);
+  const [productImagePreviewUrl, setProductImagePreviewUrl] = useState<string | null>(null);
+  const [isGeneratingProductImage, setIsGeneratingProductImage] = useState<boolean>(false);
+  const [productImageError, setProductImageError] = useState<string | null>(null);
+
 
   const { control, handleSubmit, watch, setValue, reset, setFocus, getValues, formState: { errors } } = useForm<ProductInputFormValues>({
     resolver: zodResolver(FormSchema),
@@ -69,6 +75,35 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
 
+  const clearProductImageStates = useCallback(() => {
+    setProductImagePreviewUrl(null);
+    setIsGeneratingProductImage(false);
+    setProductImageError(null);
+  }, []);
+
+  useEffect(() => {
+    if (!identifiedProduct) {
+      clearProductImageStates();
+    }
+  }, [identifiedProduct, clearProductImageStates]);
+
+
+  const triggerProductImageGeneration = useCallback(async (productName: string) => {
+    if (!productName) return;
+    setIsGeneratingProductImage(true);
+    setProductImagePreviewUrl(null);
+    setProductImageError(null);
+    try {
+      const imageResult = await generateProductImageByName({ productName });
+      setProductImagePreviewUrl(imageResult.productImageDataUri);
+    } catch (imgError) {
+      console.error("Error generating product image:", imgError);
+      setProductImageError((imgError as Error).message || "Failed to generate product image.");
+    } finally {
+      setIsGeneratingProductImage(false);
+    }
+  }, []);
+
 
   const stopCameraStream = useCallback(() => {
     if (stream) {
@@ -84,12 +119,14 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
     setIsCameraMode(prevIsCameraMode => {
       const nextIsCameraMode = !prevIsCameraMode;
       if (nextIsCameraMode) {
-        setIdentifiedProduct(null);
+        setIdentifiedProduct(null); // This will also clear image via useEffect
         reset({ manualProductName: '', quantity: 1, overridePrice: false, manualPrice: undefined });
+      } else {
+        stopCameraStream();
       }
       return nextIsCameraMode;
     });
-  }, [setIsCameraMode, setIdentifiedProduct, reset]);
+  }, [setIsCameraMode, setIdentifiedProduct, reset, stopCameraStream]);
 
 
   const requestCameraPermission = useCallback(async () => {
@@ -141,14 +178,14 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
       requestCameraPermission();
     } else {
       stopCameraStream();
-      setHasCameraPermission(null); 
+      // No need to set hasCameraPermission to null if it was false due to an error
+      // setHasCameraPermission(null); 
       setCameraError(null);
       setIsIdentifying(false); 
     }
-    return () => {
-        stopCameraStream();
-    };
-  }, [isCameraMode]); // Simplified dependency array
+    // No return cleanup needed here as stopCameraStream is called when isCameraMode becomes false
+    // or when component unmounts (implicitly by its own cleanup if necessary)
+  }, [isCameraMode]); // Effect relies only on isCameraMode to trigger camera setup/teardown
 
 
   const handleCaptureAndIdentify = async () => {
@@ -159,6 +196,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
     
     setIsIdentifying(true); 
     setCameraError(null);
+    setIdentifiedProduct(null); // Clear previous product, which also clears image
 
     const video = videoRef.current;
     const canvas = canvasRef.current;
@@ -182,7 +220,12 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
       setValue('overridePrice', false);
       setValue('manualProductName', result.name);
       toast({ title: "Product Identified", description: `AI identified: ${result.name} at ${selectedCurrencySymbol}${result.price.toFixed(2)}. Adjust if needed.` });
-      handleToggleCameraMode();
+      
+      if (result.name) {
+        triggerProductImageGeneration(result.name);
+      }
+      
+      handleToggleCameraMode(); // Close camera after successful identification
       setFocus('quantity');
     } catch (error) {
       console.error("Error identifying product:", error);
@@ -201,7 +244,8 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
       return;
     }
     setIsFetchingManualPrice(true);
-    setIdentifiedProduct(null); 
+    setIdentifiedProduct(null); // Clear previous product, which also clears image
+
     try {
       const result = await getProductPriceByName({ productName, currencyCode: selectedCurrencyCode });
       setIdentifiedProduct({ name: result.name, price: result.price }); 
@@ -212,6 +256,11 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
         title: "AI Price Fetched",
         description: `Product: ${result.name}. AI Price: ${selectedCurrencySymbol}${result.price.toFixed(2)}. Adjust if needed.`
       });
+
+      if (result.name) {
+        triggerProductImageGeneration(result.name);
+      }
+
       setFocus('quantity');
     } catch (apiError) {
       console.error("Error getting price for manual product name:", apiError);
@@ -236,10 +285,10 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
       !isCameraMode && 
       !isIdentifying &&
       !isFetchingManualPrice &&
-      !overrideIsChecked
+      !overrideIsChecked 
     ) {
       const reFetchPriceForNewCurrency = async () => {
-        setIsFetchingManualPrice(true); 
+        // We don't set isFetchingManualPrice here to avoid hiding the image preview during re-fetch
         try {
           toast({
             title: "Currency Changed",
@@ -247,13 +296,20 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
           });
           const result = await getProductPriceByName({ productName: currentProductName, currencyCode: selectedCurrencyCode });
           if (getValues('manualProductName') === currentProductName || identifiedProduct?.name === currentProductName) {
-            setIdentifiedProduct({ name: result.name, price: result.price });
+            setIdentifiedProduct({ name: result.name, price: result.price }); // This keeps image if name is same
             setValue('manualPrice', result.price);
             setValue('manualProductName', result.name); 
             toast({
               title: "Price Updated",
               description: `AI Price for ${result.name} is now ${selectedCurrencySymbol}${result.price.toFixed(2)}.`
             });
+            // Optionally re-trigger image generation if name changed or if desired
+            // For now, we assume if the name is the same, the image is still relevant.
+            // If product name from AI changes slightly, image might need refresh:
+            if (identifiedProduct.name !== result.name && result.name) {
+                 triggerProductImageGeneration(result.name);
+            }
+
           } else {
              toast({
               title: "Price Update Skipped",
@@ -267,9 +323,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
             title: "AI Pricing Error",
             description: (apiError as Error).message || `Could not update price for '${currentProductName}' in ${selectedCurrencyCode}. Previous price retained.`
           });
-        } finally {
-          setIsFetchingManualPrice(false);
-        }
+        } 
       };
       reFetchPriceForNewCurrency();
     }
@@ -284,7 +338,8 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
     setValue, 
     getValues, 
     toast,
-    setIdentifiedProduct 
+    setIdentifiedProduct,
+    triggerProductImageGeneration
   ]);
 
 
@@ -325,17 +380,17 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
     onAddItem(currentProductName, priceToUse, data.quantity, identifiedProduct?.price ?? priceToUse);
 
     reset();
-    setIdentifiedProduct(null);
+    setIdentifiedProduct(null); // This will also clear image via useEffect
     if (isCameraMode) handleToggleCameraMode(); 
   };
 
   const handleClearForm = () => {
     reset();
-    setIdentifiedProduct(null);
+    setIdentifiedProduct(null); // This will also clear image via useEffect
     if (isCameraMode) handleToggleCameraMode();
   }
 
-  const anyAILoading = isIdentifying || isFetchingManualPrice;
+  const anyAILoading = isIdentifying || isFetchingManualPrice || isGeneratingProductImage;
   const cameraActiveAndReady = isCameraMode && hasCameraPermission === true && stream;
 
 
@@ -377,7 +432,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
                 <AlertTitle>Camera Access Issue</AlertTitle>
                 <AlertDescription>
                   {cameraError}
-                  {!cameraError.includes("denied") && <Button variant="link" onClick={requestCameraPermission} className="p-0 h-auto">Retry</Button>}
+                  {cameraError && !cameraError.includes("denied") && <Button variant="link" onClick={requestCameraPermission} className="p-0 h-auto">Retry</Button>}
                 </AlertDescription>
               </Alert>
             )}
@@ -390,7 +445,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
 
             <Button
               onClick={handleCaptureAndIdentify}
-              disabled={anyAILoading || !cameraActiveAndReady}
+              disabled={isIdentifying || !cameraActiveAndReady} // Simplified disabling logic
               className="w-full mt-4 bg-primary hover:bg-primary/90"
               aria-label="Capture image and identify product"
             >
@@ -418,6 +473,12 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
                             placeholder="Type product name here"
                             aria-label="Manual Product Name"
                             disabled={anyAILoading}
+                            onChange={(e) => {
+                                field.onChange(e);
+                                if (identifiedProduct && e.target.value !== identifiedProduct.name) {
+                                    setIdentifiedProduct(null); // Clear if manual name deviates
+                                }
+                            }}
                             />
                         )}
                     />
@@ -445,17 +506,49 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
                 </p>
               </Card>
             )}
-             {!identifiedProduct && !isCameraMode && !anyAILoading && (
+
+            {(isGeneratingProductImage || productImagePreviewUrl || productImageError) && !isCameraMode && (
+                <Card className="mt-4 p-4">
+                    <CardTitle className="text-sm font-medium mb-2">Product Image Preview</CardTitle>
+                    {isGeneratingProductImage && (
+                        <div className="flex flex-col items-center justify-center h-32 bg-muted/30 rounded-md">
+                            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                            <p className="text-sm text-muted-foreground mt-2">Generating image...</p>
+                        </div>
+                    )}
+                    {productImageError && !isGeneratingProductImage && (
+                        <Alert variant="destructive">
+                            <AlertTriangleIcon className="h-4 w-4" />
+                            <AlertTitle>Image Generation Error</AlertTitle>
+                            <AlertDescription>{productImageError}</AlertDescription>
+                        </Alert>
+                    )}
+                    {productImagePreviewUrl && !isGeneratingProductImage && !productImageError && (
+                         <div className="flex justify-center items-center h-32 bg-muted/30 rounded-md overflow-hidden">
+                            <Image
+                                src={productImagePreviewUrl}
+                                alt={identifiedProduct?.name || 'Generated product image'}
+                                width={200}
+                                height={200}
+                                className="rounded-md border shadow-sm object-contain max-h-full w-auto"
+                                data-ai-hint={identifiedProduct?.name ? identifiedProduct.name.split(" ").slice(0,2).join(" ").toLowerCase() : "product object"}
+                            />
+                        </div>
+                    )}
+                </Card>
+            )}
+
+             {!identifiedProduct && !isCameraMode && !anyAILoading && !productImagePreviewUrl && !productImageError && (
                  <div className="text-center py-4 text-muted-foreground border-t border-dashed mt-4 pt-4">
                     <Barcode className="mx-auto h-8 w-8 mb-2 opacity-50"/>
                     <p className="text-xs">Or use 'Scan with Camera' for image identification.</p>
                 </div>
             )}
-            {anyAILoading && !isCameraMode && (
+            {(isFetchingManualPrice && !isCameraMode) && ( // Show only price fetching loader if not camera mode and not image generating
                 <div className="text-center py-4">
                     <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
                     <p className="text-muted-foreground mt-2">
-                        {isFetchingManualPrice ? `Fetching AI price for ${getValues('manualProductName')} in ${selectedCurrencyCode}...` : 'Loading...'}
+                        {`Fetching AI price for ${getValues('manualProductName')} in ${selectedCurrencyCode}...`}
                     </p>
                 </div>
             )}
@@ -556,4 +649,3 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
     </Card>
   );
 }
-
