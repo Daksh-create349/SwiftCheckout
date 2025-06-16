@@ -119,7 +119,7 @@ export default function SwiftCheckoutPage() {
          toast({ title: "Item Added", description: `${name} added to bill.`, className: "bg-green-500 text-white" });
         return [...prevItems, {
           id: newItemId,
-          productId: name, 
+          productId: name,
           name: name,
           price: price,
           quantity,
@@ -290,14 +290,14 @@ export default function SwiftCheckoutPage() {
     }
     lastScrollTimeRef.current = now;
 
-    const beta = event.beta; 
-    
+    const beta = event.beta;
+
     if (beta === null) return;
 
     if (Math.abs(beta) > TILT_THRESHOLD_VERTICAL) {
       let scrollAmount = (Math.abs(beta) - TILT_THRESHOLD_VERTICAL) * SCROLL_SENSITIVITY_VERTICAL;
-      if (beta < 0) { 
-        scrollAmount = -scrollAmount; 
+      if (beta < 0) {
+        scrollAmount = -scrollAmount;
       }
       window.scrollBy(0, scrollAmount);
     }
@@ -351,8 +351,8 @@ export default function SwiftCheckoutPage() {
   const handleToggleSensorScrolling = (checked: boolean) => {
     setIsSensorScrollingEnabled(checked);
     if (!checked) {
-      setSensorError(null); 
-      permissionRequestedRef.current = false; 
+      setSensorError(null);
+      permissionRequestedRef.current = false;
     }
   };
 
@@ -376,7 +376,7 @@ export default function SwiftCheckoutPage() {
                         id="sensor-scrolling-switch"
                         checked={isSensorScrollingEnabled}
                         onCheckedChange={handleToggleSensorScrolling}
-                        disabled={!!sensorError && isSensorScrollingEnabled} 
+                        disabled={!!sensorError && isSensorScrollingEnabled}
                         aria-label="Toggle sensor-based scrolling"
                     />
                 </div>
@@ -524,6 +524,5 @@ export default function SwiftCheckoutPage() {
     </div>
   );
 }
-
 
     
