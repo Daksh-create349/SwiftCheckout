@@ -91,7 +91,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
 
   const requestCameraPermission = useCallback(async () => {
     setCameraError(null);
-    setHasCameraPermission(null); // Reset permission status at the start of a request
+    setHasCameraPermission(null); 
 
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       setCameraError("Camera API is not supported by your browser.");
@@ -106,7 +106,6 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
       setHasCameraPermission(true);
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
-        // Autoplay is important for continuous scanning
         videoRef.current.onloadedmetadata = () => {
            if (videoRef.current) videoRef.current.play().catch(e => console.error("Video play failed",e));
         };
@@ -131,20 +130,18 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
     if (isCameraMode) {
       requestCameraPermission();
     } else {
-      // Cleanup when camera mode is turned off
       if (codeReaderRef.current) {
-        codeReaderRef.current.reset(); // Stop barcode scanner
+        codeReaderRef.current.reset(); 
         codeReaderRef.current = null;
       }
       stopCameraStream();
       setHasCameraPermission(null);
       setCameraError(null);
-      setIsProcessingBarcode(false); // Reset barcode processing flag
+      setIsProcessingBarcode(false); 
     }
 
-    // Cleanup on unmount if camera is active
     return () => {
-      if (isCameraMode) { // Only if camera was active
+      if (isCameraMode) { 
         if (codeReaderRef.current) {
           codeReaderRef.current.reset();
           codeReaderRef.current = null;
@@ -155,22 +152,16 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
   }, [isCameraMode, requestCameraPermission, stopCameraStream]);
 
 
-  // Effect for barcode scanning
   useEffect(() => {
-    // Ensure all conditions are met: camera active, permission granted, video element exists and is ready
     if (isCameraMode && hasCameraPermission === true && videoRef.current && videoRef.current.readyState >= videoRef.current.HAVE_METADATA) {
-      if (!codeReaderRef.current && !isProcessingBarcode && !isIdentifying) { // Initialize only if not already initialized or processing
+      if (!codeReaderRef.current && !isProcessingBarcode && !isIdentifying) { 
         const reader = new BrowserMultiFormatReader();
         codeReaderRef.current = reader;
 
         reader.decodeFromContinuously(videoRef.current, (result, error) => {
-          if (result && !isProcessingBarcode && codeReaderRef.current && !isIdentifying) { // Process only one barcode, ensure reader still exists
+          if (result && !isProcessingBarcode && codeReaderRef.current && !isIdentifying) { 
             setIsProcessingBarcode(true);
-            setIsIdentifying(true); // Show general "identifying" spinner
-
-            // Temp stop reader, full reset happens when camera mode toggles or on success
-            // codeReaderRef.current.stopContinuousDecode(); // Temporary pause
-            // Better: just use the flag isProcessingBarcode to ignore further results
+            setIsIdentifying(true); 
 
             const barcodeText = result.getText();
 
@@ -183,7 +174,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
                   title: "Barcode Scanned",
                   description: `Product: ${aiResult.name}. AI Price: ${selectedCurrencySymbol}${aiResult.price.toFixed(2)}. Adjust if needed.`
                 });
-                memoizedToggleCameraMode(); // This will trigger full cleanup via the other useEffect
+                memoizedToggleCameraMode(); 
                 setFocus('quantity');
               })
               .catch(apiError => {
@@ -193,23 +184,22 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
                   title: "AI Error (Barcode)",
                   description: (apiError as Error).message || `Failed to get price for product '${barcodeText}'.`
                 });
-                setIsProcessingBarcode(false); // Allow trying again or image capture
+                setIsProcessingBarcode(false); 
               })
               .finally(() => {
                 setIsIdentifying(false);
-                // If not toggling camera, ensure isProcessingBarcode is reset after a delay or on next action
               });
           }
           if (error && !(error instanceof NotFoundException) && !(error instanceof ChecksumException) && !(error instanceof FormatException)) {
-            // console.warn('Barcode scanning error:', error); // Can be noisy
+            // console.warn('Barcode scanning error:', error); 
           }
         }).catch(startError => {
           console.error("Failed to start barcode continuous decoding:", startError);
-          if(!(startError instanceof DOMException && startError.name === 'NotSupportedError')){ // Ignore if already scanning
+          if(!(startError instanceof DOMException && startError.name === 'NotSupportedError')){ 
             toast({ variant: "destructive", title: "Scanner Error", description: "Could not start barcode scanner." });
           }
           if (codeReaderRef.current) {
-              codeReaderRef.current.reset(); // Clean up if start failed
+              codeReaderRef.current.reset(); 
               codeReaderRef.current = null;
           }
           setIsProcessingBarcode(false);
@@ -219,7 +209,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
   }, [
     isCameraMode,
     hasCameraPermission,
-    videoRef.current?.readyState, // Re-run if video readyState changes
+    videoRef.current?.readyState, 
     isProcessingBarcode,
     isIdentifying,
     selectedCurrencyCode,
@@ -237,12 +227,11 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
        toast({ variant: "destructive", title: "Capture Error", description: "Camera not ready or permission denied." });
        return;
     }
-    // If barcode scanning is active, stop it before image capture
     if (codeReaderRef.current) {
         codeReaderRef.current.reset();
         codeReaderRef.current = null;
     }
-    setIsProcessingBarcode(true); // Prevent barcode scan from interfering
+    setIsProcessingBarcode(true); 
     setIsIdentifying(true);
     setCameraError(null);
 
@@ -268,16 +257,15 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
       setValue('manualPrice', result.price);
       setValue('overridePrice', false);
       toast({ title: "Product Identified", description: `AI identified: ${result.name} at ${selectedCurrencySymbol}${result.price.toFixed(2)}. Adjust if needed.` });
-      memoizedToggleCameraMode(); // Close camera view
+      memoizedToggleCameraMode(); 
       setFocus('quantity');
     } catch (error) {
       console.error("Error identifying product:", error);
       setIdentifiedProduct(null);
       toast({ variant: "destructive", title: "AI Error", description: (error as Error).message || `Failed to identify product in ${selectedCurrencyCode}.` });
-      setIsProcessingBarcode(false); // Allow trying again
+      setIsProcessingBarcode(false); 
     } finally {
       setIsIdentifying(false);
-      // isProcessingBarcode will be reset when camera mode is toggled off
     }
   };
 
@@ -299,7 +287,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
 
     reset();
     setIdentifiedProduct(null);
-    if (isCameraMode) memoizedToggleCameraMode(); // Close camera if open
+    if (isCameraMode) memoizedToggleCameraMode(); 
   };
 
   return (
@@ -468,5 +456,3 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
     </Card>
   );
 }
-
-    
