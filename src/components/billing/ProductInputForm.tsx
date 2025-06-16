@@ -17,7 +17,7 @@ import { getProductPriceByName, type GetProductPriceByNameInput, type GetProduct
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { NotFoundException, ChecksumException, FormatException } from '@zxing/library';
-import * as ZXingBrowser from '@zxing/browser'; // Changed import
+import { BrowserMultiFormatReader } from '@zxing/browser';
 import { getCurrencySymbol } from '@/types/billing';
 
 
@@ -72,7 +72,9 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
-  const codeReaderRef = useRef<ZXingBrowser.BrowserMultiFormatReader | null>(null); // Adjusted type
+  const codeReaderRef = useRef<BrowserMultiFormatReader | null>(null);
+  const activeReaderIsDecodingRef = useRef<boolean>(false);
+
 
   const stopCameraStream = useCallback(() => {
     if (stream) {
@@ -148,6 +150,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
         codeReaderRef.current.reset();
         codeReaderRef.current = null;
       }
+      activeReaderIsDecodingRef.current = false;
       stopCameraStream();
       setHasCameraPermission(null); 
       setCameraError(null);
@@ -158,99 +161,107 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
 
 
   useEffect(() => {
-    let currentReaderInstance: ZXingBrowser.BrowserMultiFormatReader | null = null; // Adjusted type
-
     if (
-      isCameraMode &&
-      stream && 
-      videoRef.current &&
-      videoRef.current.readyState >= videoRef.current.HAVE_METADATA && 
-      !isProcessingBarcode && 
-      !isIdentifying &&       
-      !isFetchingManualPrice 
+        isCameraMode &&
+        hasCameraPermission === true &&
+        stream && 
+        videoRef.current &&
+        videoRef.current.readyState >= videoRef.current.HAVE_METADATA && 
+        !isProcessingBarcode && 
+        !isIdentifying &&       
+        !isFetchingManualPrice
     ) {
-      if (!codeReaderRef.current) { 
-        currentReaderInstance = new ZXingBrowser.BrowserMultiFormatReader(undefined, 500); // Changed instantiation
-        
-        if (!currentReaderInstance || typeof currentReaderInstance.decodeFromContinuously !== 'function') {
-          console.error('Failed to create a valid BrowserMultiFormatReader instance or method decodeFromContinuously is missing.');
-          setCameraError("Barcode scanner initialization failed critical error.");
-          if (codeReaderRef.current === currentReaderInstance) { 
-             codeReaderRef.current = null;
-          }
-          setIsProcessingBarcode(false); // Ensure flag is reset
-          return; 
-        }
-        codeReaderRef.current = currentReaderInstance;
-
-        currentReaderInstance.decodeFromContinuously(videoRef.current, (result, error) => {
-            if (!isCameraMode || !codeReaderRef.current || codeReaderRef.current !== currentReaderInstance) {
+        let tempReader: BrowserMultiFormatReader | null = null;
+        if (!codeReaderRef.current) {
+            try {
+                tempReader = new BrowserMultiFormatReader(undefined, 500);
+            } catch (e) {
+                console.error("Error constructing BrowserMultiFormatReader:", e);
+                setCameraError("Failed to construct barcode scanner. Check console for details.");
+                setIsProcessingBarcode(false); // Ensure flag is reset
                 return;
             }
 
-            if (result && !isProcessingBarcode && !isIdentifying && !isFetchingManualPrice) {
-                setIsProcessingBarcode(true); 
+            if (!tempReader || typeof tempReader.decodeFromContinuously !== 'function') {
+                console.error('Constructed reader instance is invalid or missing decodeFromContinuously method.');
+                setCameraError("Barcode scanner initialization failed (invalid instance).");
+                setIsProcessingBarcode(false); 
+                return; 
+            }
+            codeReaderRef.current = tempReader;
+        }
 
-                const barcodeText = result.getText();
-                getProductPriceByName({ productName: barcodeText, currencyCode: selectedCurrencyCode })
-                  .then(aiResult => {
-                      if (isCameraMode && codeReaderRef.current === currentReaderInstance) { 
-                          setIdentifiedProduct({ name: aiResult.name, price: aiResult.price });
-                          setValue('manualPrice', aiResult.price);
-                          setValue('overridePrice', false);
-                          setValue('manualProductName', aiResult.name);
-                          toast({
-                              title: "Barcode Scanned",
-                              description: `Product: ${aiResult.name}. AI Price: ${selectedCurrencySymbol}${aiResult.price.toFixed(2)}. Adjust if needed.`
-                          });
-                          handleToggleCameraMode(); 
-                          setFocus('quantity');
-                      }
-                  })
-                  .catch(apiError => {
-                       if (isCameraMode && codeReaderRef.current === currentReaderInstance) {
-                          console.error("Error getting price for barcode:", apiError);
-                          toast({
-                              variant: "destructive",
-                              title: "AI Error (Barcode)",
-                              description: (apiError as Error).message || `Failed to get price for product '${barcodeText}'.`
-                          });
-                          if(codeReaderRef.current === currentReaderInstance) {
-                            codeReaderRef.current.reset(); 
-                            codeReaderRef.current = null; 
+        const activeReader = codeReaderRef.current;
+
+        if (activeReader && !activeReaderIsDecodingRef.current) {
+            activeReaderIsDecodingRef.current = true;
+            activeReader.decodeFromContinuously(videoRef.current, (result, error) => {
+                if (!isCameraMode || !codeReaderRef.current || !activeReaderIsDecodingRef.current) { // Check if still decoding
+                    return; 
+                }
+
+                if (result && !isProcessingBarcode && !isIdentifying && !isFetchingManualPrice) { // Double check processing flags
+                    setIsProcessingBarcode(true); 
+                    activeReaderIsDecodingRef.current = false; // Stop decoding attempts by this path
+                    if (codeReaderRef.current) codeReaderRef.current.reset(); // Stop the physical scanner
+                    
+                    const barcodeText = result.getText();
+                    getProductPriceByName({ productName: barcodeText, currencyCode: selectedCurrencyCode })
+                      .then(aiResult => {
+                          if (isCameraMode) { // Check if still in camera mode, might have been toggled off
+                              setIdentifiedProduct({ name: aiResult.name, price: aiResult.price });
+                              setValue('manualPrice', aiResult.price);
+                              setValue('overridePrice', false);
+                              setValue('manualProductName', aiResult.name);
+                              toast({
+                                  title: "Barcode Scanned",
+                                  description: `Product: ${aiResult.name}. AI Price: ${selectedCurrencySymbol}${aiResult.price.toFixed(2)}. Adjust if needed.`
+                              });
+                              handleToggleCameraMode(); 
+                              setFocus('quantity');
                           }
-                       }
-                  })
-                  .finally(() => {
-                      if (codeReaderRef.current === currentReaderInstance || !isCameraMode) {
+                      })
+                      .catch(apiError => {
+                           if (isCameraMode) {
+                              console.error("Error getting price for barcode:", apiError);
+                              toast({
+                                  variant: "destructive",
+                                  title: "AI Error (Barcode)",
+                                  description: (apiError as Error).message || `Failed to get price for product '${barcodeText}'.`
+                              });
+                           }
+                      })
+                      .finally(() => {
+                          // Reset processing flag, camera might be off or another scan started
                           setIsProcessingBarcode(false);
-                      }
-                  });
-            }
-            if (error && !(error instanceof NotFoundException) && !(error instanceof ChecksumException) && !(error instanceof FormatException)) {
-                // console.warn('Barcode scanning error (ZXing):', error.message);
-            }
-        }).catch(startError => {
-            console.error("Failed to start barcode continuous decoding:", startError);
-            if (codeReaderRef.current === currentReaderInstance) { 
-                codeReaderRef.current.reset();
-                codeReaderRef.current = null;
-            }
-            setCameraError("Failed to start barcode scanner. Please ensure camera is not obstructed and try again.");
-            setIsProcessingBarcode(false); 
-        });
-      }
+                          // If camera was toggled off, main useEffect cleanup handles reader.
+                          // If still in camera mode but scan done, reader is reset above. New one will be created if needed.
+                      });
+                }
+                if (error && !(error instanceof NotFoundException) && !(error instanceof ChecksumException) && !(error instanceof FormatException)) {
+                    // console.warn('Barcode scanning error (ZXing):', error.message);
+                }
+            }).catch(startError => {
+                console.error("Failed to start barcode continuous decoding:", startError);
+                if (codeReaderRef.current) { 
+                    codeReaderRef.current.reset(); // Reset if start fails
+                }
+                activeReaderIsDecodingRef.current = false;
+                setCameraError("Failed to start barcode scanner. Please ensure camera is not obstructed and try again.");
+                setIsProcessingBarcode(false); 
+            });
+          }
+    } else if (!isCameraMode && codeReaderRef.current && activeReaderIsDecodingRef.current) {
+        // If camera mode is turned off while decoding was attempted/active
+        if (codeReaderRef.current) codeReaderRef.current.reset();
+        activeReaderIsDecodingRef.current = false;
     }
 
-    return () => {
-      if (currentReaderInstance && codeReaderRef.current === currentReaderInstance) {
-        currentReaderInstance.reset();
-        codeReaderRef.current = null;
-      }
-    };
   }, [
     isCameraMode, 
+    hasCameraPermission,
     stream, 
+    videoRef.current?.readyState, // Add readyState to deps
     isProcessingBarcode, 
     isIdentifying, 
     isFetchingManualPrice, 
@@ -270,8 +281,8 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
        return;
     }
     if (codeReaderRef.current) { 
-        codeReaderRef.current.reset();
-        codeReaderRef.current = null; 
+        codeReaderRef.current.reset(); // Stop barcode scanning if active
+        activeReaderIsDecodingRef.current = false;
     }
     
     setIsIdentifying(true); 
