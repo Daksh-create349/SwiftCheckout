@@ -17,9 +17,15 @@ import { ToastAction } from "@/components/ui/toast";
 import type { CartItem, Currency } from '@/types/billing';
 import { SUPPORTED_CURRENCIES, DEFAULT_CURRENCY_CODE, getCurrencySymbol } from '@/types/billing';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { getCrossSellSuggestions, type CrossSellSuggestionInput } from '@/ai/flows/cross-sell-suggestion';
 import { generateBillImage, type GenerateBillImageInput } from '@/ai/flows/generate-bill-image-flow';
-import { Zap, AlertTriangle, CheckCircle, Printer, Loader2, CreditCard, Download, Settings } from 'lucide-react';
+import { Zap, AlertTriangle, CheckCircle, Printer, Loader2, CreditCard, Download, Settings, Move3d } from 'lucide-react';
+
+const SCROLL_THROTTLE_MS = 100;
+const TILT_THRESHOLD_VERTICAL = 15; // Degrees
+const SCROLL_SENSITIVITY_VERTICAL = 2; // Pixels per degree over threshold
 
 export default function SwiftCheckoutPage() {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
@@ -33,9 +39,15 @@ export default function SwiftCheckoutPage() {
   const [billImageDataUri, setBillImageDataUri] = useState<string | null>(null);
   const [isGeneratingBillImage, setIsGeneratingBillImage] = useState<boolean>(false);
   const [selectedCurrencyCode, setSelectedCurrencyCode] = useState<string>(DEFAULT_CURRENCY_CODE);
+  const [isSensorScrollingEnabled, setIsSensorScrollingEnabled] = useState<boolean>(false);
+  const [sensorError, setSensorError] = useState<string | null>(null);
+
 
   const { toast } = useToast();
   const billImageRef = useRef<HTMLImageElement>(null);
+  const lastScrollTimeRef = useRef<number>(0);
+  const permissionRequestedRef = useRef(false);
+
 
   const selectedCurrencySymbol = getCurrencySymbol(selectedCurrencyCode);
 
@@ -107,7 +119,7 @@ export default function SwiftCheckoutPage() {
          toast({ title: "Item Added", description: `${name} added to bill.`, className: "bg-green-500 text-white" });
         return [...prevItems, {
           id: newItemId,
-          productId: name, // Retained for potential future use, but functionally maps to name
+          productId: name, 
           name: name,
           price: price,
           quantity,
@@ -203,14 +215,14 @@ export default function SwiftCheckoutPage() {
   const handlePrintBill = () => {
     const printWindow = window.open('', '_blank');
     if (printWindow && billImageDataUri) {
-      printWindow.document.write(`
-        <html>
-          <head><title>Print Bill</title></head>
-          <body style="margin:0; padding:0; display:flex; justify-content:center; align-items:center; min-height:100vh;">
-            <img src="${billImageDataUri}" style="max-width:100%; max-height:100vh; object-fit:contain;" onload="window.print(); setTimeout(window.close, 100);" />
-          </body>
-        </html>
-      `);
+      printWindow.document.write(
+        '<html>' +
+          '<head><title>Print Bill</title></head>' +
+          '<body style="margin:0; padding:0; display:flex; justify-content:center; align-items:center; min-height:100vh;">' +
+            '<img src="' + billImageDataUri + '" style="max-width:100%; max-height:100vh; object-fit:contain;" onload="window.print(); setTimeout(window.close, 100);" />' +
+          '</body>' +
+        '</html>'
+      );
       printWindow.document.close();
     } else {
       toast({ variant: "destructive", title: "Print Error", description: "Could not open print window or no bill image found." });
@@ -269,18 +281,106 @@ export default function SwiftCheckoutPage() {
     });
   };
 
+  const handleOrientation = useCallback((event: DeviceOrientationEvent) => {
+    if (!isSensorScrollingEnabled) return;
+
+    const now = Date.now();
+    if (now - lastScrollTimeRef.current < SCROLL_THROTTLE_MS) {
+      return;
+    }
+    lastScrollTimeRef.current = now;
+
+    const beta = event.beta; 
+    
+    if (beta === null) return;
+
+    if (Math.abs(beta) > TILT_THRESHOLD_VERTICAL) {
+      let scrollAmount = (Math.abs(beta) - TILT_THRESHOLD_VERTICAL) * SCROLL_SENSITIVITY_VERTICAL;
+      if (beta < 0) { 
+        scrollAmount = -scrollAmount; 
+      }
+      window.scrollBy(0, scrollAmount);
+    }
+  }, [isSensorScrollingEnabled]);
+
+
+  useEffect(() => {
+    const requestAndAddListener = async () => {
+      setSensorError(null);
+      if (typeof (DeviceOrientationEvent as any).requestPermission === 'function' && !permissionRequestedRef.current) {
+        try {
+          const permissionState = await (DeviceOrientationEvent as any).requestPermission();
+          permissionRequestedRef.current = true;
+          if (permissionState !== 'granted') {
+            setSensorError("Permission for device orientation not granted.");
+            toast({ variant: "destructive", title: "Sensor Error", description: "Permission for device orientation not granted." });
+            setIsSensorScrollingEnabled(false);
+            return;
+          }
+        } catch (error) {
+          console.error("Error requesting device orientation permission:", error);
+          setSensorError("Failed to request device orientation permission.");
+          toast({ variant: "destructive", title: "Sensor Error", description: "Failed to request device orientation permission." });
+          setIsSensorScrollingEnabled(false);
+          return;
+        }
+      }
+
+      if (window.DeviceOrientationEvent) {
+        window.addEventListener('deviceorientation', handleOrientation);
+        toast({ title: "Sensor Scrolling Enabled", description: "Tilt your device to scroll." });
+      } else {
+        setSensorError("Device orientation sensors not supported on this browser.");
+        toast({ variant: "destructive", title: "Sensor Error", description: "Device orientation sensors not supported." });
+        setIsSensorScrollingEnabled(false);
+      }
+    };
+
+    if (isSensorScrollingEnabled) {
+      requestAndAddListener();
+    }
+
+    return () => {
+      if (window.DeviceOrientationEvent) {
+        window.removeEventListener('deviceorientation', handleOrientation);
+      }
+    };
+  }, [isSensorScrollingEnabled, handleOrientation, toast]);
+
+
+  const handleToggleSensorScrolling = (checked: boolean) => {
+    setIsSensorScrollingEnabled(checked);
+    if (!checked) {
+      setSensorError(null); 
+      permissionRequestedRef.current = false; 
+    }
+  };
+
 
   return (
     <div className="min-h-screen flex flex-col p-4 md:p-6 lg:p-8 bg-background font-body">
       <header className="mb-6 md:mb-8">
         <Card className="shadow-md">
-          <div className="p-4 flex items-center justify-between">
+          <div className="p-4 flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center">
               <Zap className="h-10 w-10 text-primary animate-pulse" />
               <h1 className="ml-3 text-3xl md:text-4xl font-bold font-headline text-primary">SwiftCheckout</h1>
             </div>
-            <div className="flex items-center space-x-2">
-                <Select value={selectedCurrencyCode} onValueChange={handleCurrencyChange}>
+            <div className="flex items-center space-x-2 flex-wrap">
+                <div className="flex items-center space-x-2">
+                    <Move3d className={`h-5 w-5 ${isSensorScrollingEnabled && !sensorError ? 'text-primary' : 'text-muted-foreground'}`} />
+                    <Label htmlFor="sensor-scrolling-switch" className="text-sm text-muted-foreground whitespace-nowrap">
+                        Sensor Scroll
+                    </Label>
+                    <Switch
+                        id="sensor-scrolling-switch"
+                        checked={isSensorScrollingEnabled}
+                        onCheckedChange={handleToggleSensorScrolling}
+                        disabled={!!sensorError && isSensorScrollingEnabled} 
+                        aria-label="Toggle sensor-based scrolling"
+                    />
+                </div>
+                 <Select value={selectedCurrencyCode} onValueChange={handleCurrencyChange}>
                     <SelectTrigger className="w-[120px] bg-card hover:bg-muted/50 transition-colors">
                         <Settings className="h-4 w-4 mr-1 text-muted-foreground" />
                         <SelectValue placeholder="Currency" />
@@ -310,6 +410,13 @@ export default function SwiftCheckoutPage() {
             </div>
           </div>
         </Card>
+          {sensorError && isSensorScrollingEnabled && (
+             <Alert variant="destructive" className="mt-2">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Sensor Scrolling Error</AlertTitle>
+                <AlertDescription>{sensorError} This feature has been disabled.</AlertDescription>
+            </Alert>
+        )}
       </header>
 
       <main className="flex-grow grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
@@ -417,3 +524,6 @@ export default function SwiftCheckoutPage() {
     </div>
   );
 }
+
+
+    
