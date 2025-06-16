@@ -13,7 +13,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { CreditCard, Smartphone, CircleDollarSign, X, ArrowLeft, ShieldCheck, MessageSquareWarning } from 'lucide-react';
+import { CreditCard, Smartphone, CircleDollarSign, X, ArrowLeft, ShieldCheck, MessageSquareWarning, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
@@ -69,12 +69,15 @@ export function PaymentModal({ isOpen, onClose, onPaymentSelect, grandTotal, cur
     }
     const otp = Math.floor(1000 + Math.random() * 9000).toString(); // Generate 4-digit OTP
     setSimulatedOtp(otp);
+    setEnteredOtp(''); // Clear previous OTP entry on resend
     toast({
       title: "OTP Sent (Simulation)",
       description: `For testing, your OTP is: ${otp}`,
       duration: 10000, // Keep it visible longer for testing
     });
-    setPaymentStep('enterOtp');
+    if (paymentStep !== 'enterOtp') { // Only transition if not already on OTP screen (i.e., initial send)
+        setPaymentStep('enterOtp');
+    }
   };
 
   const handleVerifyOtp = () => {
@@ -82,7 +85,7 @@ export function PaymentModal({ isOpen, onClose, onPaymentSelect, grandTotal, cur
     if (enteredOtp === simulatedOtp) {
       onPaymentSelect('mobile_payment');
     } else {
-      setErrorMessage("Invalid OTP. Please try again.");
+      setErrorMessage("Invalid OTP. Please try again or resend.");
     }
   };
 
@@ -165,8 +168,8 @@ export function PaymentModal({ isOpen, onClose, onPaymentSelect, grandTotal, cur
               <Label htmlFor="otp" className="font-medium">Enter OTP</Label>
               <Input
                 id="otp"
-                type="text" // Use text to allow leading zeros if OTPs could have them, or number
-                inputMode="numeric" // Suggest numeric keyboard
+                type="text" 
+                inputMode="numeric" 
                 value={enteredOtp}
                 onChange={(e) => setEnteredOtp(e.target.value)}
                 placeholder="4-digit OTP"
@@ -174,9 +177,14 @@ export function PaymentModal({ isOpen, onClose, onPaymentSelect, grandTotal, cur
                 maxLength={4}
               />
             </div>
-            <Button onClick={handleVerifyOtp} className="w-full bg-green-600 hover:bg-green-700 text-white">
-              <ShieldCheck className="mr-2 h-5 w-5" /> Verify & Pay
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-2">
+                <Button onClick={handleVerifyOtp} className="w-full bg-green-600 hover:bg-green-700 text-white">
+                    <ShieldCheck className="mr-2 h-5 w-5" /> Verify & Pay
+                </Button>
+                <Button variant="outline" onClick={handleSendOtp} className="w-full sm:w-auto">
+                    <RefreshCw className="mr-2 h-4 w-4" /> Resend OTP
+                </Button>
+            </div>
           </div>
         )}
 
@@ -194,5 +202,3 @@ export function PaymentModal({ isOpen, onClose, onPaymentSelect, grandTotal, cur
     </Dialog>
   );
 }
-
-    
