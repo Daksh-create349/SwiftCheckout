@@ -7,23 +7,24 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { ShoppingCart, Trash2, Edit3, Plus, Minus } from 'lucide-react';
+import { ShoppingCart, Trash2, Plus, Minus } from 'lucide-react'; // Removed Edit3
 import { Input } from '../ui/input';
 
 interface ItemListProps {
   items: CartItem[];
   onRemoveItem: (itemId: string) => void;
   onUpdateQuantity: (itemId: string, newQuantity: number) => void;
+  currencySymbol: string;
 }
 
-export function ItemList({ items, onRemoveItem, onUpdateQuantity }: ItemListProps) {
-  
+export function ItemList({ items, onRemoveItem, onUpdateQuantity, currencySymbol }: ItemListProps) {
+
   const handleQuantityChange = (itemId: string, currentQuantity: number, change: number) => {
     const newQuantity = currentQuantity + change;
     if (newQuantity >= 1) {
       onUpdateQuantity(itemId, newQuantity);
     } else if (newQuantity === 0) {
-      onRemoveItem(itemId); 
+      onRemoveItem(itemId);
     }
   };
 
@@ -67,9 +68,9 @@ export function ItemList({ items, onRemoveItem, onUpdateQuantity }: ItemListProp
                     <TableCell className="font-medium">{item.name}</TableCell>
                     <TableCell className="text-center">
                       <div className="flex items-center justify-center space-x-1">
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
+                        <Button
+                          variant="ghost"
+                          size="icon"
                           className="h-7 w-7"
                           onClick={() => handleQuantityChange(item.id, item.quantity, -1)}
                           aria-label={`Decrease quantity of ${item.name}`}
@@ -84,9 +85,9 @@ export function ItemList({ items, onRemoveItem, onUpdateQuantity }: ItemListProp
                           min="1"
                           aria-label={`Quantity of ${item.name}`}
                         />
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
+                        <Button
+                          variant="ghost"
+                          size="icon"
                           className="h-7 w-7"
                           onClick={() => handleQuantityChange(item.id, item.quantity, 1)}
                           aria-label={`Increase quantity of ${item.name}`}
@@ -95,8 +96,8 @@ export function ItemList({ items, onRemoveItem, onUpdateQuantity }: ItemListProp
                         </Button>
                       </div>
                     </TableCell>
-                    <TableCell className="text-right">${item.price.toFixed(2)}</TableCell>
-                    <TableCell className="text-right font-semibold">${(item.price * item.quantity).toFixed(2)}</TableCell>
+                    <TableCell className="text-right">{currencySymbol}{item.price.toFixed(2)}</TableCell>
+                    <TableCell className="text-right font-semibold">{currencySymbol}{(item.price * item.quantity).toFixed(2)}</TableCell>
                     <TableCell className="text-center">
                       <Button
                         variant="ghost"

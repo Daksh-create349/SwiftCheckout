@@ -1,3 +1,4 @@
+
 "use client";
 
 import React from 'react';
@@ -10,13 +11,14 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { CreditCard, Smartphone, CircleDollarSign, X } from 'lucide-react'; // Updated DollarSign to CircleDollarSign
+import { CreditCard, Smartphone, CircleDollarSign, X } from 'lucide-react';
 
 interface PaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
   onPaymentSelect: (method: string) => void;
   grandTotal: number;
+  currencySymbol: string;
 }
 
 const paymentOptions = [
@@ -25,7 +27,7 @@ const paymentOptions = [
   { name: 'Cash', icon: CircleDollarSign, id: 'cash' },
 ];
 
-export function PaymentModal({ isOpen, onClose, onPaymentSelect, grandTotal }: PaymentModalProps) {
+export function PaymentModal({ isOpen, onClose, onPaymentSelect, grandTotal, currencySymbol }: PaymentModalProps) {
   if (!isOpen) return null;
 
   return (
@@ -34,10 +36,10 @@ export function PaymentModal({ isOpen, onClose, onPaymentSelect, grandTotal }: P
         <DialogHeader>
           <DialogTitle className="text-2xl font-headline text-center text-primary">Complete Payment</DialogTitle>
           <DialogDescription className="text-center text-muted-foreground">
-            Total amount due: <span className="font-bold text-foreground">${grandTotal.toFixed(2)}</span>
+            Total amount due: <span className="font-bold text-foreground">{currencySymbol}{grandTotal.toFixed(2)}</span>
           </DialogDescription>
         </DialogHeader>
-        
+
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 py-6">
           {paymentOptions.map((option) => (
             <Button

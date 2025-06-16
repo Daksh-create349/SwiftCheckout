@@ -1,9 +1,9 @@
 
 'use server';
 /**
- * @fileOverview Generates an image of a bill/receipt.
+ * @fileOverview Generates an image of a bill/receipt with a specified currency symbol.
  *
- * - generateBillImage - A function that takes bill details and returns an image data URI.
+ * - generateBillImage - A function that takes bill details (including currency symbol) and returns an image data URI.
  * - GenerateBillImageInput - The input type for the generateBillImage function.
  * - GenerateBillImageOutput - The return type for the generateBillImage function.
  */
@@ -28,6 +28,7 @@ const GenerateBillImageInputSchema = z.object({
   taxAmount: z.number().describe('The total tax amount.'),
   grandTotal: z.number().describe('The final grand total amount.'),
   currentDate: z.string().describe("The current date for the receipt (e.g., 'MM/DD/YYYY')."),
+  currencySymbol: z.string().describe('The currency symbol to use for all monetary values (e.g., $, €, £).'),
 });
 export type GenerateBillImageInput = z.infer<typeof GenerateBillImageInputSchema>;
 
@@ -45,11 +46,11 @@ export async function generateBillImage(input: GenerateBillImageInput): Promise<
 }
 
 // Helper function to format items for the prompt
-function formatItemsForPrompt(items: Array<z.infer<typeof BillItemSchema>>): string {
+function formatItemsForPrompt(items: Array<z.infer<typeof BillItemSchema>>, currencySymbol: string): string {
   return items
     .map(
       (item) =>
-        `${item.quantity} x ${item.name} @ $${item.price.toFixed(2)} ea.  (Total: $${item.total.toFixed(2)})`
+        `${item.quantity} x ${item.name} @ ${currencySymbol}${item.price.toFixed(2)} ea.  (Total: ${currencySymbol}${item.total.toFixed(2)})`
     )
     .join('\n');
 }
@@ -61,7 +62,7 @@ const generateBillImageFlow = ai.defineFlow(
     outputSchema: GenerateBillImageOutputSchema,
   },
   async (input) => {
-    const formattedItems = formatItemsForPrompt(input.items);
+    const formattedItems = formatItemsForPrompt(input.items, input.currencySymbol);
 
     const promptText = `
 Generate an image that looks like a typical store receipt.
@@ -74,12 +75,12 @@ Items:
 ${formattedItems}
 ------------------------------------
 
-Subtotal: $${input.subtotal.toFixed(2)}
-Discount (${input.discountPercentage.toFixed(2)}%): -$${input.discountAmount.toFixed(2)}
-Tax (${input.taxPercentage.toFixed(2)}%): +$${input.taxAmount.toFixed(2)}
+Subtotal: ${input.currencySymbol}${input.subtotal.toFixed(2)}
+Discount (${input.discountPercentage.toFixed(2)}%): -${input.currencySymbol}${input.discountAmount.toFixed(2)}
+Tax (${input.taxPercentage.toFixed(2)}%): +${input.currencySymbol}${input.taxAmount.toFixed(2)}
 
 ------------------------------------
-GRAND TOTAL: $${input.grandTotal.toFixed(2)}
+GRAND TOTAL: ${input.currencySymbol}${input.grandTotal.toFixed(2)}
 ------------------------------------
 
 Thank you for your purchase!
@@ -89,12 +90,10 @@ The receipt should be vertically oriented.
 `;
 
     const {media} = await ai.generate({
-      model: 'googleai/gemini-2.0-flash-exp', // Crucial: Use the image generation capable model
+      model: 'googleai/gemini-2.0-flash-exp', 
       prompt: promptText,
       config: {
-        responseModalities: ['IMAGE', 'TEXT'], // Important: Must include both
-        // Optional: You can try to adjust safety settings if needed, but default is usually fine
-        // safetySettings: [{ category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' }],
+        responseModalities: ['IMAGE', 'TEXT'], 
       },
     });
 

@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { DollarSign, PlusCircle, XCircle, Camera, Zap, AlertTriangleIcon, ScanSearch } from 'lucide-react';
+import { PlusCircle, XCircle, Camera, Zap, AlertTriangleIcon, ScanSearch } from 'lucide-react'; // Removed DollarSign
 import { useToast } from '@/hooks/use-toast';
 import { identifyProductFromImage, type IdentifyProductInput, type IdentifyProductOutput } from '@/ai/flows/identify-product-flow';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -26,9 +26,11 @@ type ProductInputFormValues = z.infer<typeof FormSchema>;
 
 interface ProductInputFormProps {
   onAddItem: (name: string, price: number, quantity: number, originalPrice: number) => void;
+  selectedCurrencyCode: string;
+  selectedCurrencySymbol: string;
 }
 
-export function ProductInputForm({ onAddItem }: ProductInputFormProps) {
+export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurrencySymbol }: ProductInputFormProps) {
   const { toast } = useToast();
   const [identifiedProduct, setIdentifiedProduct] = useState<IdentifyProductOutput | null>(null);
 
@@ -51,7 +53,6 @@ export function ProductInputForm({ onAddItem }: ProductInputFormProps) {
     }
   }, [identifiedProduct, overridePrice, setValue]);
 
-  // Camera related state
   const [isCameraMode, setIsCameraMode] = useState(false);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const [isIdentifying, setIsIdentifying] = useState(false);
@@ -78,7 +79,7 @@ export function ProductInputForm({ onAddItem }: ProductInputFormProps) {
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
         videoRef.current.onloadedmetadata = () => {
-           if (videoRef.current) videoRef.current.play(); // Ensure video plays
+           if (videoRef.current) videoRef.current.play();
         };
       }
     } catch (error) {
@@ -88,7 +89,7 @@ export function ProductInputForm({ onAddItem }: ProductInputFormProps) {
       if (errorName === 'NotAllowedError') errorMsg = 'Camera permission was denied. Please enable it in browser settings.';
       else if (errorName === 'NotFoundError') errorMsg = 'No camera found. Ensure a camera is connected.';
       else if (errorName === 'NotReadableError') errorMsg = 'Camera is in use by another app or hardware error.';
-      
+
       setCameraError(errorMsg);
       setHasCameraPermission(false);
       toast({ variant: 'destructive', title: 'Camera Access Error', description: errorMsg });
@@ -106,7 +107,7 @@ export function ProductInputForm({ onAddItem }: ProductInputFormProps) {
       if (videoRef.current) {
         videoRef.current.srcObject = null;
       }
-      setHasCameraPermission(null); 
+      setHasCameraPermission(null);
       setCameraError(null);
     }
     return () => {
@@ -119,7 +120,7 @@ export function ProductInputForm({ onAddItem }: ProductInputFormProps) {
 
   const handleToggleCameraMode = () => {
     setIsCameraMode(prev => !prev);
-    if (!isCameraMode) { // Reset identified product when turning camera on
+    if (!isCameraMode) {
       setIdentifiedProduct(null);
       reset({ quantity: 1, overridePrice: false, manualPrice: undefined });
     }
@@ -148,18 +149,18 @@ export function ProductInputForm({ onAddItem }: ProductInputFormProps) {
     const photoDataUri = canvas.toDataURL('image/jpeg');
 
     try {
-      const input: IdentifyProductInput = { photoDataUri };
+      const input: IdentifyProductInput = { photoDataUri, currencyCode: selectedCurrencyCode };
       const result = await identifyProductFromImage(input);
       setIdentifiedProduct(result);
-      setValue('manualPrice', result.price); // Set initial price from AI
-      setValue('overridePrice', false); // Reset override
-      toast({ title: "Product Identified", description: `AI identified: ${result.name} at $${result.price.toFixed(2)}. Adjust if needed.` });
-      handleToggleCameraMode(); // Close camera after identification
+      setValue('manualPrice', result.price);
+      setValue('overridePrice', false);
+      toast({ title: "Product Identified", description: `AI identified: ${result.name} at ${selectedCurrencySymbol}${result.price.toFixed(2)}. Adjust if needed.` });
+      handleToggleCameraMode();
       setFocus('quantity');
     } catch (error) {
       console.error("Error identifying product:", error);
       setIdentifiedProduct(null);
-      toast({ variant: "destructive", title: "AI Error", description: (error as Error).message || "Failed to identify product." });
+      toast({ variant: "destructive", title: "AI Error", description: (error as Error).message || `Failed to identify product in ${selectedCurrencyCode}.` });
     } finally {
       setIsIdentifying(false);
     }
@@ -175,15 +176,15 @@ export function ProductInputForm({ onAddItem }: ProductInputFormProps) {
       return;
     }
 
-    const priceToUse = data.overridePrice && data.manualPrice !== undefined 
-      ? data.manualPrice 
+    const priceToUse = data.overridePrice && data.manualPrice !== undefined
+      ? data.manualPrice
       : identifiedProduct.price;
-    
+
     onAddItem(identifiedProduct.name, priceToUse, data.quantity, identifiedProduct.price);
-    
+
     reset();
     setIdentifiedProduct(null);
-    if (isCameraMode) handleToggleCameraMode(); 
+    if (isCameraMode) handleToggleCameraMode();
   };
 
   return (
@@ -207,7 +208,7 @@ export function ProductInputForm({ onAddItem }: ProductInputFormProps) {
               {isIdentifying && (
                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70">
                     <Zap className="h-12 w-12 text-primary animate-pulse mb-2" />
-                    <p className="text-primary-foreground font-semibold">Identifying Product...</p>
+                    <p className="text-primary-foreground font-semibold">Identifying Product (in {selectedCurrencyCode})...</p>
                     <Skeleton className="h-4 w-3/4 mt-2 bg-slate-700" />
                     <Skeleton className="h-4 w-1/2 mt-1 bg-slate-700" />
                  </div>
@@ -222,9 +223,9 @@ export function ProductInputForm({ onAddItem }: ProductInputFormProps) {
                 </AlertDescription>
               </Alert>
             )}
-            <Button 
-              onClick={handleCaptureAndIdentify} 
-              disabled={isIdentifying || hasCameraPermission !== true} 
+            <Button
+              onClick={handleCaptureAndIdentify}
+              disabled={isIdentifying || hasCameraPermission !== true}
               className="w-full mt-4 bg-primary hover:bg-primary/90"
             >
               {isIdentifying ? 'Processing...' : (hasCameraPermission !== true ? 'Awaiting Camera...' : 'Capture & Identify Product')}
@@ -239,7 +240,7 @@ export function ProductInputForm({ onAddItem }: ProductInputFormProps) {
                   Identified: <span className="font-semibold">{identifiedProduct.name}</span>
                 </p>
                 <p className="text-sm text-foreground">
-                  AI Estimated Price: <span className="font-semibold">${identifiedProduct.price.toFixed(2)}</span>
+                  AI Estimated Price: <span className="font-semibold">{selectedCurrencySymbol}{identifiedProduct.price.toFixed(2)}</span>
                 </p>
               </Card>
             )}
@@ -251,10 +252,10 @@ export function ProductInputForm({ onAddItem }: ProductInputFormProps) {
                   name="quantity"
                   control={control}
                   render={({ field }) => (
-                    <Input 
-                      id="quantity" 
-                      type="number" 
-                      {...field} 
+                    <Input
+                      id="quantity"
+                      type="number"
+                      {...field}
                       onChange={e => field.onChange(parseInt(e.target.value,10) || 1)}
                       min="1"
                       aria-label="Quantity"
@@ -264,17 +265,17 @@ export function ProductInputForm({ onAddItem }: ProductInputFormProps) {
                 {errors.quantity && <p className="text-sm text-destructive">{errors.quantity.message}</p>}
               </div>
                <div className="space-y-2">
-                <Label htmlFor="manualPrice" className="font-medium">Price</Label>
+                <Label htmlFor="manualPrice" className="font-medium">Price ({selectedCurrencySymbol})</Label>
                 <Controller
                   name="manualPrice"
                   control={control}
                   render={({ field }) => (
                     <div className="relative">
-                      <DollarSign className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                      <Input 
-                        id="manualPrice" 
-                        type="number" 
-                        step="0.01" 
+                      <span className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground">{selectedCurrencySymbol}</span>
+                      <Input
+                        id="manualPrice"
+                        type="number"
+                        step="0.01"
                         {...field}
                         onChange={e => field.onChange(parseFloat(e.target.value) || undefined)}
                         disabled={!overridePrice && !identifiedProduct}
@@ -288,15 +289,15 @@ export function ProductInputForm({ onAddItem }: ProductInputFormProps) {
                  {errors.manualPrice && <p className="text-sm text-destructive">{errors.manualPrice.message}</p>}
               </div>
             </div>
-            
+
             <div className="flex items-center space-x-2">
               <Controller
                 name="overridePrice"
                 control={control}
                 render={({ field }) => (
-                   <Checkbox 
-                    id="overridePrice" 
-                    checked={!!field.value} 
+                   <Checkbox
+                    id="overridePrice"
+                    checked={!!field.value}
                     onCheckedChange={field.onChange}
                     disabled={!identifiedProduct}
                     aria-labelledby="overridePriceLabel"

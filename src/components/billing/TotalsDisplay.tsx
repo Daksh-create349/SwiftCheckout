@@ -1,3 +1,4 @@
+
 "use client";
 
 import React from 'react';
@@ -10,9 +11,10 @@ interface TotalsDisplayProps {
   discountAmount: number;
   taxAmount: number;
   grandTotal: number;
+  currencySymbol: string;
 }
 
-export function TotalsDisplay({ subtotal, discountAmount, taxAmount, grandTotal }: TotalsDisplayProps) {
+export function TotalsDisplay({ subtotal, discountAmount, taxAmount, grandTotal, currencySymbol }: TotalsDisplayProps) {
   return (
     <Card className="shadow-lg sticky top-4">
       <CardHeader>
@@ -23,17 +25,17 @@ export function TotalsDisplay({ subtotal, discountAmount, taxAmount, grandTotal 
       <CardContent className="space-y-3 text-sm">
         <div className="flex justify-between items-center">
           <span className="text-muted-foreground">Subtotal</span>
-          <span className="font-medium">${subtotal.toFixed(2)}</span>
+          <span className="font-medium">{currencySymbol}{subtotal.toFixed(2)}</span>
         </div>
         <Separator />
         <div className="flex justify-between items-center">
           <span className="text-muted-foreground flex items-center"><PackageMinus className="mr-1 h-4 w-4 text-destructive" /> Discount Applied</span>
-          <span className="font-medium text-destructive">-${discountAmount.toFixed(2)}</span>
+          <span className="font-medium text-destructive">-{currencySymbol}{discountAmount.toFixed(2)}</span>
         </div>
         <Separator />
         <div className="flex justify-between items-center">
           <span className="text-muted-foreground flex items-center"><PackagePlus className="mr-1 h-4 w-4 text-green-600"/> Taxes</span>
-          <span className="font-medium">${taxAmount.toFixed(2)}</span>
+          <span className="font-medium">{currencySymbol}{taxAmount.toFixed(2)}</span>
         </div>
       </CardContent>
       <CardFooter className="bg-muted/50 p-4 rounded-b-lg">
@@ -41,7 +43,7 @@ export function TotalsDisplay({ subtotal, discountAmount, taxAmount, grandTotal 
           <span className="text-lg font-semibold text-foreground flex items-center font-headline">
             <TrendingUp className="mr-2 h-5 w-5 text-primary"/> Grand Total
           </span>
-          <span className="text-2xl font-bold text-primary">${grandTotal.toFixed(2)}</span>
+          <span className="text-2xl font-bold text-primary">{currencySymbol}{grandTotal.toFixed(2)}</span>
         </div>
       </CardFooter>
     </Card>

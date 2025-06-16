@@ -14,10 +14,12 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from '@/hooks/use-toast';
 import { ToastAction } from "@/components/ui/toast";
-import type { CartItem } from '@/types/billing';
+import type { CartItem, Currency } from '@/types/billing';
+import { SUPPORTED_CURRENCIES, DEFAULT_CURRENCY_CODE, getCurrencySymbol } from '@/types/billing';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { getCrossSellSuggestions, type CrossSellSuggestionInput } from '@/ai/flows/cross-sell-suggestion';
 import { generateBillImage, type GenerateBillImageInput } from '@/ai/flows/generate-bill-image-flow';
-import { Zap, AlertTriangle, CheckCircle, Printer, Loader2, CreditCard, Download } from 'lucide-react';
+import { Zap, AlertTriangle, CheckCircle, Printer, Loader2, CreditCard, Download, Settings } from 'lucide-react';
 
 export default function SwiftCheckoutPage() {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
@@ -30,9 +32,12 @@ export default function SwiftCheckoutPage() {
   const [isBillFinalized, setIsBillFinalized] = useState<boolean>(false);
   const [billImageDataUri, setBillImageDataUri] = useState<string | null>(null);
   const [isGeneratingBillImage, setIsGeneratingBillImage] = useState<boolean>(false);
+  const [selectedCurrencyCode, setSelectedCurrencyCode] = useState<string>(DEFAULT_CURRENCY_CODE);
 
   const { toast } = useToast();
   const billImageRef = useRef<HTMLImageElement>(null);
+
+  const selectedCurrencySymbol = getCurrencySymbol(selectedCurrencyCode);
 
   const calculateSubtotal = useCallback(() => {
     return cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
@@ -82,7 +87,7 @@ export default function SwiftCheckoutPage() {
   useEffect(() => {
     const debounceTimer = setTimeout(() => {
       fetchCrossSellSuggestions();
-    }, 500); 
+    }, 500);
     return () => clearTimeout(debounceTimer);
   }, [cartItems, fetchCrossSellSuggestions]);
 
@@ -94,17 +99,17 @@ export default function SwiftCheckoutPage() {
       if (existingItemIndex > -1) {
         const updatedItems = [...prevItems];
         updatedItems[existingItemIndex].quantity += quantity;
-        updatedItems[existingItemIndex].price = price; 
+        updatedItems[existingItemIndex].price = price;
         updatedItems[existingItemIndex].originalPrice = originalPrice;
         toast({ title: "Item Updated", description: `${name} quantity increased.`, className: "bg-green-500 text-white" });
         return updatedItems;
       } else {
          toast({ title: "Item Added", description: `${name} added to bill.`, className: "bg-green-500 text-white" });
-        return [...prevItems, { 
+        return [...prevItems, {
           id: newItemId,
-          productId: name, 
-          name: name, 
-          price: price, 
+          productId: name, // Retained for potential future use, but functionally maps to name
+          name: name,
+          price: price,
           quantity,
           originalPrice: originalPrice,
         }];
@@ -116,10 +121,10 @@ export default function SwiftCheckoutPage() {
     setCartItems(prevItems => prevItems.filter(item => item.id !== itemId));
     toast({ title: "Item Removed", description: `Item removed from bill.`, variant: "destructive" });
   };
-  
+
   const handleUpdateQuantity = (itemId: string, newQuantity: number) => {
-    setCartItems(prevItems => 
-      prevItems.map(item => 
+    setCartItems(prevItems =>
+      prevItems.map(item =>
         item.id === itemId ? { ...item, quantity: newQuantity } : item
       )
     );
@@ -146,7 +151,7 @@ export default function SwiftCheckoutPage() {
     }
 
     setIsGeneratingBillImage(true);
-    setBillImageDataUri(null); // Clear previous image if any
+    setBillImageDataUri(null);
 
     try {
       const billImageInput: GenerateBillImageInput = {
@@ -164,6 +169,7 @@ export default function SwiftCheckoutPage() {
         taxAmount,
         grandTotal,
         currentDate: new Date().toLocaleDateString(),
+        currencySymbol: selectedCurrencySymbol,
       };
       const result = await generateBillImage(billImageInput);
       setBillImageDataUri(result.billImageDataUri);
@@ -178,7 +184,7 @@ export default function SwiftCheckoutPage() {
     } finally {
       setIsGeneratingBillImage(false);
     }
-    
+
     setIsBillFinalized(true);
   };
 
@@ -212,8 +218,8 @@ export default function SwiftCheckoutPage() {
   };
 
   const handlePaymentSelect = (method: string) => {
-    const currentBillImage = billImageDataUri; // Capture before reset
-    const paidGrandTotal = grandTotal; // Capture before reset
+    const currentBillImage = billImageDataUri;
+    const paidGrandTotal = grandTotal;
 
     setIsPaymentModalOpen(false);
     setCartItems([]);
@@ -221,14 +227,13 @@ export default function SwiftCheckoutPage() {
     setTaxPercentage(0);
     setCrossSellSuggestions([]);
     setIsBillFinalized(false);
-    setBillImageDataUri(null); 
-    // Subtotal, discountAmount, taxAmount, grandTotal will auto-update via useEffect
+    setBillImageDataUri(null);
 
     toast({
       title: "Payment Processed",
-      description: `Payment of $${paidGrandTotal.toFixed(2)} via ${method.replace('_', ' ')} successful. New bill started.`,
+      description: `Payment of ${selectedCurrencySymbol}${paidGrandTotal.toFixed(2)} via ${method.replace('_', ' ')} successful. New bill started.`,
       className: "bg-primary text-primary-foreground",
-      duration: 7000, // Give more time for the download action
+      duration: 7000,
       action: currentBillImage ? (
         <ToastAction
           altText="Download Bill"
@@ -248,6 +253,23 @@ export default function SwiftCheckoutPage() {
     });
   };
 
+  const handleCurrencyChange = (value: string) => {
+    if (cartItems.length > 0) {
+        toast({
+            variant: "destructive",
+            title: "Cannot Change Currency",
+            description: "Please clear the current bill before changing currency to avoid pricing inconsistencies.",
+        });
+        return;
+    }
+    setSelectedCurrencyCode(value);
+    toast({
+        title: "Currency Updated",
+        description: `Currency changed to ${value} (${getCurrencySymbol(value)}). AI price estimates will now be in ${value}.`,
+    });
+  };
+
+
   return (
     <div className="min-h-screen flex flex-col p-4 md:p-6 lg:p-8 bg-background font-body">
       <header className="mb-6 md:mb-8">
@@ -257,20 +279,35 @@ export default function SwiftCheckoutPage() {
               <Zap className="h-10 w-10 text-primary animate-pulse" />
               <h1 className="ml-3 text-3xl md:text-4xl font-bold font-headline text-primary">SwiftCheckout</h1>
             </div>
-            <Button 
-              variant="default"
-              className="bg-accent hover:bg-accent/80 text-accent-foreground" 
-              onClick={handleFinalizeBill}
-              disabled={cartItems.length === 0 || isBillFinalized || isGeneratingBillImage}
-              aria-label="Finalize Bill"
-            >
-              {isGeneratingBillImage && !isBillFinalized ? (
-                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-              ) : (
-                <CheckCircle className="mr-2 h-5 w-5" />
-              )}
-              {isGeneratingBillImage && !isBillFinalized ? "Generating..." : "Finalize Bill"}
-            </Button>
+            <div className="flex items-center space-x-2">
+                <Select value={selectedCurrencyCode} onValueChange={handleCurrencyChange}>
+                    <SelectTrigger className="w-[120px] bg-card hover:bg-muted/50 transition-colors">
+                        <Settings className="h-4 w-4 mr-1 text-muted-foreground" />
+                        <SelectValue placeholder="Currency" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {SUPPORTED_CURRENCIES.map((currency) => (
+                        <SelectItem key={currency.code} value={currency.code}>
+                            {currency.code} ({currency.symbol})
+                        </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+                <Button
+                    variant="default"
+                    className="bg-accent hover:bg-accent/80 text-accent-foreground"
+                    onClick={handleFinalizeBill}
+                    disabled={cartItems.length === 0 || isBillFinalized || isGeneratingBillImage}
+                    aria-label="Finalize Bill"
+                >
+                    {isGeneratingBillImage && !isBillFinalized ? (
+                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    ) : (
+                        <CheckCircle className="mr-2 h-5 w-5" />
+                    )}
+                    {isGeneratingBillImage && !isBillFinalized ? "Generating..." : "Finalize Bill"}
+                </Button>
+            </div>
           </div>
         </Card>
       </header>
@@ -278,13 +315,17 @@ export default function SwiftCheckoutPage() {
       <main className="flex-grow grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
         <section className="lg:col-span-2 flex flex-col gap-6 md:gap-8">
           {!isBillFinalized && (
-            <ProductInputForm onAddItem={handleAddItem} />
+            <ProductInputForm
+                onAddItem={handleAddItem}
+                selectedCurrencyCode={selectedCurrencyCode}
+                selectedCurrencySymbol={selectedCurrencySymbol}
+            />
           )}
           {isBillFinalized && cartItems.length > 0 && (
              <Card className="p-6 text-center bg-card border-border shadow-md">
               <CheckCircle className="h-12 w-12 text-green-600 mx-auto mb-2" />
               <h2 className="text-xl font-semibold text-green-700 font-headline">Bill Finalized</h2>
-              
+
               {isGeneratingBillImage && (
                 <div className="my-4">
                   <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
@@ -295,12 +336,12 @@ export default function SwiftCheckoutPage() {
               {!isGeneratingBillImage && billImageDataUri && (
                 <div className="mt-4">
                   <h3 className="text-lg font-medium mb-2">Generated Bill Image:</h3>
-                  <Image 
+                  <Image
                     ref={billImageRef}
-                    src={billImageDataUri} 
-                    alt="Generated Bill" 
-                    width={400} 
-                    height={600} 
+                    src={billImageDataUri}
+                    alt="Generated Bill"
+                    width={400}
+                    height={600}
                     className="rounded-md border shadow-sm mx-auto"
                     data-ai-hint="receipt bill"
                   />
@@ -318,10 +359,10 @@ export default function SwiftCheckoutPage() {
                     </AlertDescription>
                 </Alert>
               )}
-              
+
               {!isGeneratingBillImage && cartItems.length > 0 && (
-                <Button 
-                    onClick={handleProceedToPayment} 
+                <Button
+                    onClick={handleProceedToPayment}
                     className="mt-6 bg-green-600 hover:bg-green-700 text-white"
                     size="lg"
                 >
@@ -330,37 +371,44 @@ export default function SwiftCheckoutPage() {
               )}
             </Card>
           )}
-          <ItemList items={cartItems} onRemoveItem={handleRemoveItem} onUpdateQuantity={handleUpdateQuantity} />
+          <ItemList
+            items={cartItems}
+            onRemoveItem={handleRemoveItem}
+            onUpdateQuantity={handleUpdateQuantity}
+            currencySymbol={selectedCurrencySymbol}
+          />
         </section>
 
         <section className="lg:col-span-1 flex flex-col gap-6 md:gap-8">
-          <TotalsDisplay 
-            subtotal={subtotal} 
-            discountAmount={discountAmount} 
-            taxAmount={taxAmount} 
-            grandTotal={grandTotal} 
+          <TotalsDisplay
+            subtotal={subtotal}
+            discountAmount={discountAmount}
+            taxAmount={taxAmount}
+            grandTotal={grandTotal}
+            currencySymbol={selectedCurrencySymbol}
           />
           {!isBillFinalized && (
-            <DiscountTaxForm 
-              onApplyDiscount={handleApplyDiscount} 
+            <DiscountTaxForm
+              onApplyDiscount={handleApplyDiscount}
               onApplyTax={handleApplyTax}
               currentDiscount={discountPercentage}
               currentTax={taxPercentage}
             />
           )}
-          <CrossSellSuggestions 
-            suggestions={crossSellSuggestions} 
+          <CrossSellSuggestions
+            suggestions={crossSellSuggestions}
             isLoading={isSuggestionsLoading}
             error={suggestionsError}
           />
         </section>
       </main>
-      
-      <PaymentModal 
-        isOpen={isPaymentModalOpen} 
+
+      <PaymentModal
+        isOpen={isPaymentModalOpen}
         onClose={() => setIsPaymentModalOpen(false)}
         onPaymentSelect={handlePaymentSelect}
         grandTotal={grandTotal}
+        currencySymbol={selectedCurrencySymbol}
       />
 
       <footer className="mt-8 text-center text-sm text-muted-foreground">
@@ -369,6 +417,3 @@ export default function SwiftCheckoutPage() {
     </div>
   );
 }
-    
-
-    
