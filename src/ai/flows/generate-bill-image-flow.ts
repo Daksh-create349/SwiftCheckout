@@ -65,28 +65,32 @@ const generateBillImageFlow = ai.defineFlow(
     const formattedItems = formatItemsForPrompt(input.items, input.currencySymbol);
 
     const promptText = `
-Generate an image that looks like a typical store receipt.
+Generate a highly realistic image of a standard store receipt. The image should be very clear, legible, and look like a printed paper receipt.
 
-Store Name: ${input.storeName}
-Date: ${input.currentDate}
+**Receipt Details:**
+
+**Store Name:** ${input.storeName}
+**Date:** ${input.currentDate}
 
 ------------------------------------
-Items:
+**Items:**
 ${formattedItems}
 ------------------------------------
 
-Subtotal: ${input.currencySymbol}${input.subtotal.toFixed(2)}
-Discount (${input.discountPercentage.toFixed(2)}%): -${input.currencySymbol}${input.discountAmount.toFixed(2)}
-Tax (${input.taxPercentage.toFixed(2)}%): +${input.currencySymbol}${input.taxAmount.toFixed(2)}
+**Subtotal:** ${input.currencySymbol}${input.subtotal.toFixed(2)}
+**Discount (${input.discountPercentage.toFixed(2)}%):** -${input.currencySymbol}${input.discountAmount.toFixed(2)}
+**Tax (${input.taxPercentage.toFixed(2)}%):** +${input.currencySymbol}${input.taxAmount.toFixed(2)}
 
 ------------------------------------
-GRAND TOTAL: ${input.currencySymbol}${input.grandTotal.toFixed(2)}
+**GRAND TOTAL: ${input.currencySymbol}${input.grandTotal.toFixed(2)}**
 ------------------------------------
 
-Thank you for your purchase!
-Please make the image clear, legible, and resemble a printed paper receipt. Use a monospaced font if possible.
-The background should be white or off-white, and text should be dark (black or dark grey).
-The receipt should be vertically oriented.
+**Instructions for Generation:**
+1.  **Layout:** Strictly follow the layout provided above. Ensure items are listed clearly, one per line if possible, with quantity, name, unit price, and item total.
+2.  **Text Rendering:** Render ALL text, especially product names, quantities, and ALL monetary values (prices, totals, subtotal, grand total, discount, tax amounts), *exactly* as provided in the 'Receipt Details' section. All text must be extremely sharp, clear, and easy to read.
+3.  **Font:** Use a simple, clean, monospaced font, like those used on typical thermal receipt printers.
+4.  **Appearance:** The receipt must be vertically oriented. The background should be plain white or very light off-white. All text should be dark (black or very dark grey).
+5.  **Simplicity & Accuracy:** Do NOT add any artistic embellishments, decorative elements, logos (unless the store name itself implies one, render it simply as text), or any extra text/graphics not explicitly requested in the 'Receipt Details'. The image must be purely functional and accurately represent a real-world printed receipt. Avoid any blurriness or distortion.
 `;
 
     const {media} = await ai.generate({
