@@ -290,81 +290,80 @@ export default function SwiftCheckoutPage() {
     }
     lastScrollTimeRef.current = now;
 
-    const beta = event.beta; // Front-to-back tilt in degrees
+    const beta = event.beta; 
 
-    if (beta === null) return; // Sensor data not available
+    if (beta === null) { 
+        return;
+    }
 
-    // Check if the tilt exceeds the threshold
     if (Math.abs(beta) > TILT_THRESHOLD_VERTICAL) {
       let scrollAmount = (Math.abs(beta) - TILT_THRESHOLD_VERTICAL) * SCROLL_SENSITIVITY_VERTICAL;
-      if (beta < 0) { // Tilting forward (top of device away from user)
-        scrollAmount = -scrollAmount; // Scroll up
+      if (beta < 0) { 
+        scrollAmount = -scrollAmount; 
       }
-      // Tilting backward (top of device towards user) scrolls down (positive scrollAmount)
       window.scrollBy(0, scrollAmount);
     }
-  }, [isSensorScrollingEnabled]); // Dependencies
+  }, [isSensorScrollingEnabled]); 
 
   const requestAndAddListener = useCallback(async () => {
-    setSensorError(null); // Reset error at the beginning of an attempt
+    setSensorError(null); 
 
     if (typeof window.DeviceOrientationEvent === 'undefined') {
       const errorMsg = "Device orientation sensors are not supported by this browser.";
       setSensorError(errorMsg);
       toast({ variant: "destructive", title: "Sensor Error", description: errorMsg });
-      setIsSensorScrollingEnabled(false); // Ensure switch is off
+      setIsSensorScrollingEnabled(false); 
       return;
     }
-
-    // For iOS Safari and potentially other browsers requiring explicit permission
-    if (typeof (DeviceOrientationEvent as any).requestPermission === 'function' && !permissionRequestedRef.current) {
-      try {
-        const permissionState = await (DeviceOrientationEvent as any).requestPermission();
-        permissionRequestedRef.current = true; // Mark that permission has been requested
-        if (permissionState !== 'granted') {
-          const errorMsg = "Permission for device orientation not granted.";
+    
+    if (typeof (DeviceOrientationEvent as any).requestPermission === 'function') { // Primarily for iOS Safari
+      if (!permissionRequestedRef.current) { // Only request if not already attempted in this "on" cycle
+        try {
+          const permissionState = await (DeviceOrientationEvent as any).requestPermission();
+          permissionRequestedRef.current = true; // Mark that a permission attempt has been made
+          if (permissionState === 'granted') {
+            window.addEventListener('deviceorientation', handleOrientation);
+            toast({ title: "Sensor Scrolling Enabled", description: "Tilt your device to scroll." });
+          } else {
+            const errorMsg = "Permission for device orientation not granted.";
+            setSensorError(errorMsg);
+            toast({ variant: "destructive", title: "Sensor Permission Denied", description: errorMsg });
+            setIsSensorScrollingEnabled(false); // Turn the switch off if permission is explicitly denied
+          }
+        } catch (error) {
+          console.error("Error requesting device orientation permission:", error);
+          const errorMsg = "Failed to request device orientation permission. It might be blocked by your browser or OS settings.";
           setSensorError(errorMsg);
-          toast({ variant: "destructive", title: "Sensor Error", description: errorMsg });
-          setIsSensorScrollingEnabled(false);
-          return;
+          toast({ variant: "destructive", title: "Sensor Request Error", description: errorMsg });
+          setIsSensorScrollingEnabled(false); // Turn the switch off on error
         }
-      } catch (error) {
-        console.error("Error requesting device orientation permission:", error);
-        const errorMsg = "Failed to request device orientation permission. It might be blocked by your browser or OS settings.";
-        setSensorError(errorMsg);
-        toast({ variant: "destructive", title: "Sensor Error", description: errorMsg });
-        setIsSensorScrollingEnabled(false);
-        return;
+      } else {
+        // If permissionRequestedRef.current is true, it means a request was made in this "on" cycle.
+        // We assume if it wasn't denied (which would've returned/set error), it was granted.
+        // This handles cases where the effect might re-run but permission is already sorted for this "session".
+         window.addEventListener('deviceorientation', handleOrientation);
+         toast({ title: "Sensor Scrolling Re-enabled", description: "Tilt your device to scroll." });
       }
     } else {
-      // For other browsers, or if permission was already requested/granted in this session
-      // Setting permissionRequestedRef.current to true here if not using requestPermission API,
-      // assumes the browser will handle prompts or has existing permissions.
-      if (typeof (DeviceOrientationEvent as any).requestPermission !== 'function') {
-          permissionRequestedRef.current = true;
-      }
+      // For other browsers (Desktop, Android Chrome, etc.) that don't use requestPermission()
+      window.addEventListener('deviceorientation', handleOrientation);
+      toast({ 
+        title: "Sensor Scrolling Enabled", 
+        description: "Attempting to use device sensors. If tilting does not work, your device/browser may lack support or permissions might be blocking access." 
+      });
     }
-    
-    // Add event listener if we have (or assume we have) permission
-    window.addEventListener('deviceorientation', handleOrientation);
-    toast({ title: "Sensor Scrolling Enabled", description: "Tilt your device to scroll. If it doesn't work, your device may lack sensors or browser support." });
-
-  }, [handleOrientation, toast]); // requestAndAddListener dependencies
+  }, [handleOrientation, toast, setIsSensorScrollingEnabled]); 
 
 
   useEffect(() => {
     if (isSensorScrollingEnabled) {
       requestAndAddListener();
     } else {
-      // Cleanup when sensor scrolling is disabled
       window.removeEventListener('deviceorientation', handleOrientation);
-      // If we turned it off, reset error message, but keep permissionRequestedRef as is for the session
-      // unless we want to re-prompt every time. For now, permission is session-based.
-      setSensorError(null); 
+      setSensorError(null); // Clear error when user manually disables or it's disabled programmatically.
     }
 
     return () => {
-      // Cleanup on component unmount
       window.removeEventListener('deviceorientation', handleOrientation);
     };
   }, [isSensorScrollingEnabled, requestAndAddListener, handleOrientation]);
@@ -373,13 +372,10 @@ export default function SwiftCheckoutPage() {
   const handleToggleSensorScrolling = (checked: boolean) => {
     setIsSensorScrollingEnabled(checked);
     if (checked) {
-      // Reset permission requested flag only if explicitly re-enabling
-      // to allow the permission prompt to show again if it was denied previously
-      // and the browser supports re-prompting or if it's a new attempt.
-      permissionRequestedRef.current = false;
-      setSensorError(null); // Clear previous errors on new attempt
+      permissionRequestedRef.current = false; // Reset for a fresh permission request attempt if needed
+      setSensorError(null); 
     } else {
-      setSensorError(null); // Clear error when user manually disables
+      // SensorError is cleared by the useEffect when isSensorScrollingEnabled becomes false
     }
   };
 
@@ -403,9 +399,7 @@ export default function SwiftCheckoutPage() {
                         id="sensor-scrolling-switch"
                         checked={isSensorScrollingEnabled}
                         onCheckedChange={handleToggleSensorScrolling}
-                        // Disable switch if there's an error message and it's currently enabled,
-                        // or if it's just errored out during an attempt to enable.
-                        disabled={!!sensorError && isSensorScrollingEnabled}
+                        disabled={!!sensorError && isSensorScrollingEnabled} // Disable if errored while enabled
                         aria-label="Toggle sensor-based scrolling"
                     />
                 </div>
@@ -439,11 +433,11 @@ export default function SwiftCheckoutPage() {
             </div>
           </div>
         </Card>
-          {sensorError && ( // Display sensor error prominently if it exists, regardless of switch state after an attempt.
+          {sensorError && ( 
              <Alert variant="destructive" className="mt-2">
                 <AlertTriangle className="h-4 w-4" />
                 <AlertTitle>Sensor Scrolling Error</AlertTitle>
-                <AlertDescription>{sensorError} This feature may be unavailable or has been disabled.</AlertDescription>
+                <AlertDescription>{sensorError}</AlertDescription>
             </Alert>
         )}
       </header>
@@ -553,3 +547,4 @@ export default function SwiftCheckoutPage() {
     </div>
   );
 }
+
