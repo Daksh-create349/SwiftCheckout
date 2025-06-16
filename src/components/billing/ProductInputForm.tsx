@@ -16,9 +16,7 @@ import { identifyProductFromImage, type IdentifyProductInput, type IdentifyProdu
 import { getProductPriceByName, type GetProductPriceByNameInput, type GetProductPriceByNameOutput } from '@/ai/flows/get-product-price-by-name-flow';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
-import { NotFoundException, ChecksumException, FormatException } from '@zxing/library';
-import { BrowserMultiFormatReader } from '@zxing/browser';
-import { getCurrencySymbol } from '@/types/billing';
+// Removed ZXing imports
 
 
 const FormSchema = z.object({
@@ -66,14 +64,12 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
   const [isCameraMode, setIsCameraMode] = useState(false);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const [isIdentifying, setIsIdentifying] = useState(false); 
-  const [isProcessingBarcode, setIsProcessingBarcode] = useState(false); 
   const [isFetchingManualPrice, setIsFetchingManualPrice] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
-  const codeReaderRef = useRef<BrowserMultiFormatReader | null>(null);
-  const activeReaderIsDecodingRef = useRef<boolean>(false);
+  // Removed codeReaderRef and activeReaderIsDecodingRef
 
 
   const stopCameraStream = useCallback(() => {
@@ -146,143 +142,25 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
     if (isCameraMode) {
       requestCameraPermission();
     } else {
-      if (codeReaderRef.current) {
-        codeReaderRef.current.reset();
-        codeReaderRef.current = null;
-      }
-      activeReaderIsDecodingRef.current = false;
       stopCameraStream();
       setHasCameraPermission(null); 
       setCameraError(null);
-      setIsProcessingBarcode(false); 
       setIsIdentifying(false); 
     }
+    // Cleanup function
+    return () => {
+        stopCameraStream();
+    };
   }, [isCameraMode, requestCameraPermission, stopCameraStream]);
 
 
-  useEffect(() => {
-    if (
-        isCameraMode &&
-        hasCameraPermission === true &&
-        stream && 
-        videoRef.current &&
-        videoRef.current.readyState >= videoRef.current.HAVE_METADATA && 
-        !isProcessingBarcode && 
-        !isIdentifying &&       
-        !isFetchingManualPrice
-    ) {
-        let tempReader: BrowserMultiFormatReader | null = null;
-        if (!codeReaderRef.current) {
-            try {
-                tempReader = new BrowserMultiFormatReader(undefined, 500);
-            } catch (e) {
-                console.error("Error constructing BrowserMultiFormatReader:", e);
-                setCameraError("Failed to construct barcode scanner. Check console for details.");
-                setIsProcessingBarcode(false); // Ensure flag is reset
-                return;
-            }
-
-            if (!tempReader || typeof tempReader.decodeFromContinuously !== 'function') {
-                console.error('Constructed reader instance is invalid or missing decodeFromContinuously method.');
-                setCameraError("Barcode scanner initialization failed (invalid instance).");
-                setIsProcessingBarcode(false); 
-                return; 
-            }
-            codeReaderRef.current = tempReader;
-        }
-
-        const activeReader = codeReaderRef.current;
-
-        if (activeReader && !activeReaderIsDecodingRef.current) {
-            activeReaderIsDecodingRef.current = true;
-            activeReader.decodeFromContinuously(videoRef.current, (result, error) => {
-                if (!isCameraMode || !codeReaderRef.current || !activeReaderIsDecodingRef.current) { // Check if still decoding
-                    return; 
-                }
-
-                if (result && !isProcessingBarcode && !isIdentifying && !isFetchingManualPrice) { // Double check processing flags
-                    setIsProcessingBarcode(true); 
-                    activeReaderIsDecodingRef.current = false; // Stop decoding attempts by this path
-                    if (codeReaderRef.current) codeReaderRef.current.reset(); // Stop the physical scanner
-                    
-                    const barcodeText = result.getText();
-                    getProductPriceByName({ productName: barcodeText, currencyCode: selectedCurrencyCode })
-                      .then(aiResult => {
-                          if (isCameraMode) { // Check if still in camera mode, might have been toggled off
-                              setIdentifiedProduct({ name: aiResult.name, price: aiResult.price });
-                              setValue('manualPrice', aiResult.price);
-                              setValue('overridePrice', false);
-                              setValue('manualProductName', aiResult.name);
-                              toast({
-                                  title: "Barcode Scanned",
-                                  description: `Product: ${aiResult.name}. AI Price: ${selectedCurrencySymbol}${aiResult.price.toFixed(2)}. Adjust if needed.`
-                              });
-                              handleToggleCameraMode(); 
-                              setFocus('quantity');
-                          }
-                      })
-                      .catch(apiError => {
-                           if (isCameraMode) {
-                              console.error("Error getting price for barcode:", apiError);
-                              toast({
-                                  variant: "destructive",
-                                  title: "AI Error (Barcode)",
-                                  description: (apiError as Error).message || `Failed to get price for product '${barcodeText}'.`
-                              });
-                           }
-                      })
-                      .finally(() => {
-                          // Reset processing flag, camera might be off or another scan started
-                          setIsProcessingBarcode(false);
-                          // If camera was toggled off, main useEffect cleanup handles reader.
-                          // If still in camera mode but scan done, reader is reset above. New one will be created if needed.
-                      });
-                }
-                if (error && !(error instanceof NotFoundException) && !(error instanceof ChecksumException) && !(error instanceof FormatException)) {
-                    // console.warn('Barcode scanning error (ZXing):', error.message);
-                }
-            }).catch(startError => {
-                console.error("Failed to start barcode continuous decoding:", startError);
-                if (codeReaderRef.current) { 
-                    codeReaderRef.current.reset(); // Reset if start fails
-                }
-                activeReaderIsDecodingRef.current = false;
-                setCameraError("Failed to start barcode scanner. Please ensure camera is not obstructed and try again.");
-                setIsProcessingBarcode(false); 
-            });
-          }
-    } else if (!isCameraMode && codeReaderRef.current && activeReaderIsDecodingRef.current) {
-        // If camera mode is turned off while decoding was attempted/active
-        if (codeReaderRef.current) codeReaderRef.current.reset();
-        activeReaderIsDecodingRef.current = false;
-    }
-
-  }, [
-    isCameraMode, 
-    hasCameraPermission,
-    stream, 
-    videoRef.current?.readyState, // Add readyState to deps
-    isProcessingBarcode, 
-    isIdentifying, 
-    isFetchingManualPrice, 
-    selectedCurrencyCode, 
-    selectedCurrencySymbol, 
-    setValue, 
-    toast, 
-    handleToggleCameraMode, 
-    setFocus, 
-    setIdentifiedProduct
-  ]);
+  // Removed useEffect hook for barcode scanning
 
 
   const handleCaptureAndIdentify = async () => {
     if (!videoRef.current || !canvasRef.current || !stream || hasCameraPermission !== true) {
        toast({ variant: "destructive", title: "Capture Error", description: "Camera not ready or permission denied." });
        return;
-    }
-    if (codeReaderRef.current) { 
-        codeReaderRef.current.reset(); // Stop barcode scanning if active
-        activeReaderIsDecodingRef.current = false;
     }
     
     setIsIdentifying(true); 
@@ -363,7 +241,6 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
       currentProductName &&
       !isCameraMode && 
       !isIdentifying &&
-      !isProcessingBarcode &&
       !isFetchingManualPrice &&
       !overrideIsChecked
     ) {
@@ -409,7 +286,6 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
     identifiedProduct, 
     isCameraMode, 
     isIdentifying, 
-    isProcessingBarcode, 
     isFetchingManualPrice, 
     setValue, 
     getValues, 
@@ -465,7 +341,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
     if (isCameraMode) handleToggleCameraMode();
   }
 
-  const anyAILoading = isIdentifying || isProcessingBarcode || isFetchingManualPrice;
+  const anyAILoading = isIdentifying || isFetchingManualPrice; // Removed isProcessingBarcode
   const cameraActiveAndReady = isCameraMode && hasCameraPermission === true && stream;
 
 
@@ -485,15 +361,15 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
         {isCameraMode ? (
           <div className="mb-4 p-4 border rounded-md bg-muted/30">
             <h3 className="text-lg font-medium mb-2 text-center">Camera View</h3>
-            {cameraActiveAndReady && <p className="text-center text-sm text-muted-foreground mb-2">Scanning for barcodes... Or use button for image identification.</p>}
+            {cameraActiveAndReady && <p className="text-center text-sm text-muted-foreground mb-2">Position the product and use the button below to identify.</p>}
             
             <div className="relative aspect-video bg-slate-800 rounded-md overflow-hidden">
                <video ref={videoRef} className="w-full h-full object-cover" playsInline muted autoPlay />
-              {(isIdentifying || isProcessingBarcode) && cameraActiveAndReady && (
+              {isIdentifying && cameraActiveAndReady && ( // Only show loader for image identification
                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70">
                     <Zap className="h-12 w-12 text-primary animate-pulse mb-2" />
                     <p className="text-primary-foreground font-semibold">
-                        {isProcessingBarcode ? "Processing Barcode..." : (isIdentifying ? `Identifying Product (in ${selectedCurrencyCode})...` : "Loading...")}
+                        {isIdentifying ? `Identifying Product (in ${selectedCurrencyCode})...` : "Loading..."}
                     </p>
                     <Skeleton className="h-4 w-3/4 mt-2 bg-slate-700" />
                     <Skeleton className="h-4 w-1/2 mt-1 bg-slate-700" />
@@ -525,7 +401,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
               aria-label="Capture image and identify product"
             >
               <Camera className="mr-2 h-4 w-4" />
-              {isIdentifying && !isProcessingBarcode ? 'Processing Image...' : (!cameraActiveAndReady ? 'Awaiting Camera...' : 'Capture Image & Identify Product')}
+              {isIdentifying ? 'Processing Image...' : (!cameraActiveAndReady ? 'Awaiting Camera...' : 'Capture Image & Identify Product')}
             </Button>
             <canvas ref={canvasRef} className="hidden"></canvas>
           </div>
@@ -577,8 +453,8 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
             )}
              {!identifiedProduct && !isCameraMode && !anyAILoading && (
                  <div className="text-center py-4 text-muted-foreground border-t border-dashed mt-4 pt-4">
-                    <Barcode className="mx-auto h-8 w-8 mb-2 opacity-50"/>
-                    <p className="text-xs">Or use 'Scan with Camera' to use barcode/image identification.</p>
+                    <Barcode className="mx-auto h-8 w-8 mb-2 opacity-50"/> {/* Keeping barcode icon for visual cue */}
+                    <p className="text-xs">Or use 'Scan with Camera' for image identification.</p>
                 </div>
             )}
             {anyAILoading && !isCameraMode && (
@@ -686,5 +562,3 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
     </Card>
   );
 }
-
-    
