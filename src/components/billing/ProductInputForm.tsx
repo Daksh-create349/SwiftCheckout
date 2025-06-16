@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
@@ -10,17 +9,17 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { PlusCircle, XCircle, Camera, Zap, AlertTriangleIcon, ScanSearch, Barcode, Loader2 } from 'lucide-react';
+import { PlusCircle, XCircle, Camera, Zap, AlertTriangleIcon, ScanSearch, Barcode, Loader2, Search, Edit } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { identifyProductFromImage, type IdentifyProductInput, type IdentifyProductOutput } from '@/ai/flows/identify-product-flow';
 import { getProductPriceByName, type GetProductPriceByNameInput, type GetProductPriceByNameOutput } from '@/ai/flows/get-product-price-by-name-flow';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
-import { BrowserMultiFormatReader } from '@zxing/browser';
-import { NotFoundException, ChecksumException, FormatException } from '@zxing/library';
+import { BrowserMultiFormatReader, NotFoundException, ChecksumException, FormatException } from '@zxing/library';
 
 
 const FormSchema = z.object({
+  manualProductName: z.string().optional(),
   quantity: z.number().min(1, "Quantity must be at least 1"),
   manualPrice: z.number().optional(),
   overridePrice: z.boolean().optional(),
@@ -38,9 +37,10 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
   const { toast } = useToast();
   const [identifiedProduct, setIdentifiedProduct] = useState<IdentifyProductOutput | null>(null);
 
-  const { control, handleSubmit, watch, setValue, reset, setFocus, formState: { errors } } = useForm<ProductInputFormValues>({
+  const { control, handleSubmit, watch, setValue, reset, setFocus, getValues, formState: { errors } } = useForm<ProductInputFormValues>({
     resolver: zodResolver(FormSchema),
     defaultValues: {
+      manualProductName: '',
       quantity: 1,
       overridePrice: false,
       manualPrice: undefined,
@@ -48,19 +48,22 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
   });
 
   const overridePrice = watch('overridePrice');
+  const manualProductNameWatch = watch('manualProductName');
 
   useEffect(() => {
     if (identifiedProduct && !overridePrice) {
       setValue('manualPrice', identifiedProduct.price);
     } else if (!identifiedProduct && !overridePrice) {
-      setValue('manualPrice', undefined);
+       // Keep manualPrice if overridePrice is checked, otherwise clear it.
+       if (!overridePrice) setValue('manualPrice', undefined);
     }
   }, [identifiedProduct, overridePrice, setValue]);
 
   const [isCameraMode, setIsCameraMode] = useState(false);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
-  const [isIdentifying, setIsIdentifying] = useState(false); // Used for both AI image and AI barcode price lookup
+  const [isIdentifying, setIsIdentifying] = useState(false);
   const [isProcessingBarcode, setIsProcessingBarcode] = useState(false);
+  const [isFetchingManualPrice, setIsFetchingManualPrice] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -77,12 +80,12 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
     }
   }, [stream]);
 
-  const memoizedToggleCameraMode = useCallback(() => {
+  const handleToggleCameraMode = useCallback(() => {
     setIsCameraMode(prevIsCameraMode => {
       const nextIsCameraMode = !prevIsCameraMode;
-      if (nextIsCameraMode) { // Turning ON camera
+      if (nextIsCameraMode) {
         setIdentifiedProduct(null);
-        reset({ quantity: 1, overridePrice: false, manualPrice: undefined });
+        reset({ manualProductName: '', quantity: 1, overridePrice: false, manualPrice: undefined });
       }
       return nextIsCameraMode;
     });
@@ -91,7 +94,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
 
   const requestCameraPermission = useCallback(async () => {
     setCameraError(null);
-    setHasCameraPermission(null); 
+    setHasCameraPermission(null);
 
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       setCameraError("Camera API is not supported by your browser.");
@@ -131,17 +134,17 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
       requestCameraPermission();
     } else {
       if (codeReaderRef.current) {
-        codeReaderRef.current.reset(); 
+        codeReaderRef.current.reset();
         codeReaderRef.current = null;
       }
       stopCameraStream();
       setHasCameraPermission(null);
       setCameraError(null);
-      setIsProcessingBarcode(false); 
+      setIsProcessingBarcode(false);
     }
 
     return () => {
-      if (isCameraMode) { 
+      if (isCameraMode) {
         if (codeReaderRef.current) {
           codeReaderRef.current.reset();
           codeReaderRef.current = null;
@@ -154,14 +157,14 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
 
   useEffect(() => {
     if (isCameraMode && hasCameraPermission === true && videoRef.current && videoRef.current.readyState >= videoRef.current.HAVE_METADATA) {
-      if (!codeReaderRef.current && !isProcessingBarcode && !isIdentifying) { 
+      if (!codeReaderRef.current && !isProcessingBarcode && !isIdentifying && !isFetchingManualPrice) {
         const reader = new BrowserMultiFormatReader();
         codeReaderRef.current = reader;
 
         reader.decodeFromContinuously(videoRef.current, (result, error) => {
-          if (result && !isProcessingBarcode && codeReaderRef.current && !isIdentifying) { 
+          if (result && !isProcessingBarcode && codeReaderRef.current && !isIdentifying && !isFetchingManualPrice) {
             setIsProcessingBarcode(true);
-            setIsIdentifying(true); 
+            setIsIdentifying(true);
 
             const barcodeText = result.getText();
 
@@ -170,11 +173,12 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
                 setIdentifiedProduct({ name: aiResult.name, price: aiResult.price });
                 setValue('manualPrice', aiResult.price);
                 setValue('overridePrice', false);
+                setValue('manualProductName', aiResult.name);
                 toast({
                   title: "Barcode Scanned",
                   description: `Product: ${aiResult.name}. AI Price: ${selectedCurrencySymbol}${aiResult.price.toFixed(2)}. Adjust if needed.`
                 });
-                memoizedToggleCameraMode(); 
+                handleToggleCameraMode();
                 setFocus('quantity');
               })
               .catch(apiError => {
@@ -184,41 +188,52 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
                   title: "AI Error (Barcode)",
                   description: (apiError as Error).message || `Failed to get price for product '${barcodeText}'.`
                 });
-                setIsProcessingBarcode(false); 
+                setIsProcessingBarcode(false);
               })
               .finally(() => {
                 setIsIdentifying(false);
+                 if (codeReaderRef.current) {
+                    codeReaderRef.current.reset();
+                    codeReaderRef.current = null; // Ensure it's reset for next attempt
+                }
               });
           }
           if (error && !(error instanceof NotFoundException) && !(error instanceof ChecksumException) && !(error instanceof FormatException)) {
-            // console.warn('Barcode scanning error:', error); 
+            // console.warn('Barcode scanning error:', error);
           }
         }).catch(startError => {
           console.error("Failed to start barcode continuous decoding:", startError);
-          if(!(startError instanceof DOMException && startError.name === 'NotSupportedError')){ 
+          if(!(startError instanceof DOMException && startError.name === 'NotSupportedError')){
             toast({ variant: "destructive", title: "Scanner Error", description: "Could not start barcode scanner." });
           }
           if (codeReaderRef.current) {
-              codeReaderRef.current.reset(); 
+              codeReaderRef.current.reset();
               codeReaderRef.current = null;
           }
           setIsProcessingBarcode(false);
         });
       }
     }
+     return () => {
+        if (codeReaderRef.current) {
+            codeReaderRef.current.reset();
+            codeReaderRef.current = null;
+        }
+    };
   }, [
     isCameraMode,
     hasCameraPermission,
-    videoRef.current?.readyState, 
+    videoRef.current?.readyState,
     isProcessingBarcode,
     isIdentifying,
     selectedCurrencyCode,
     selectedCurrencySymbol,
     setValue,
     toast,
-    memoizedToggleCameraMode,
+    handleToggleCameraMode,
     setFocus,
-    setIdentifiedProduct
+    setIdentifiedProduct,
+    isFetchingManualPrice
   ]);
 
 
@@ -231,7 +246,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
         codeReaderRef.current.reset();
         codeReaderRef.current = null;
     }
-    setIsProcessingBarcode(true); 
+    setIsProcessingBarcode(true);
     setIsIdentifying(true);
     setCameraError(null);
 
@@ -256,49 +271,112 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
       setIdentifiedProduct(result);
       setValue('manualPrice', result.price);
       setValue('overridePrice', false);
+      setValue('manualProductName', result.name);
       toast({ title: "Product Identified", description: `AI identified: ${result.name} at ${selectedCurrencySymbol}${result.price.toFixed(2)}. Adjust if needed.` });
-      memoizedToggleCameraMode(); 
+      handleToggleCameraMode();
       setFocus('quantity');
     } catch (error) {
       console.error("Error identifying product:", error);
       setIdentifiedProduct(null);
+      setValue('manualProductName', '');
       toast({ variant: "destructive", title: "AI Error", description: (error as Error).message || `Failed to identify product in ${selectedCurrencyCode}.` });
-      setIsProcessingBarcode(false); 
+      setIsProcessingBarcode(false);
     } finally {
       setIsIdentifying(false);
     }
   };
 
-  const onSubmit: SubmitHandler<ProductInputFormValues> = (data) => {
-    if (!identifiedProduct) {
+  const handleFetchPriceForManualName = async () => {
+    const productName = getValues('manualProductName');
+    if (!productName || productName.trim() === '') {
+      toast({ variant: 'destructive', title: 'Missing Product Name', description: 'Please enter a product name to fetch its price.' });
+      return;
+    }
+    setIsFetchingManualPrice(true);
+    setIdentifiedProduct(null); // Clear previous identification
+    try {
+      const result = await getProductPriceByName({ productName, currencyCode: selectedCurrencyCode });
+      setIdentifiedProduct({ name: result.name, price: result.price }); // Use AI returned name for consistency
+      setValue('manualPrice', result.price);
+      setValue('overridePrice', false);
+      setValue('manualProductName', result.name); // Update with AI's version of the name
+      toast({
+        title: "AI Price Fetched",
+        description: `Product: ${result.name}. AI Price: ${selectedCurrencySymbol}${result.price.toFixed(2)}. Adjust if needed.`
+      });
+      setFocus('quantity');
+    } catch (apiError) {
+      console.error("Error getting price for manual product name:", apiError);
+      setIdentifiedProduct(null);
       toast({
         variant: "destructive",
-        title: "No Product Identified",
-        description: "Please scan a product using the camera first.",
+        title: "AI Pricing Error",
+        description: (apiError as Error).message || `Failed to get price for product '${productName}'.`
+      });
+    } finally {
+      setIsFetchingManualPrice(false);
+    }
+  };
+
+
+  const onSubmit: SubmitHandler<ProductInputFormValues> = (data) => {
+    const currentProductName = identifiedProduct?.name || data.manualProductName;
+
+    if (!currentProductName || currentProductName.trim() === '') {
+       toast({
+        variant: "destructive",
+        title: "No Product Name",
+        description: "Please enter a product name or scan a product using the camera.",
       });
       return;
     }
-
+    
+    if (!identifiedProduct && !data.overridePrice) {
+      toast({
+        variant: "destructive",
+        title: "Price Not Set",
+        description: "Please fetch AI price or override price manually for the entered product.",
+      });
+      return;
+    }
+    
     const priceToUse = data.overridePrice && data.manualPrice !== undefined
       ? data.manualPrice
-      : identifiedProduct.price;
+      : identifiedProduct?.price;
 
-    onAddItem(identifiedProduct.name, priceToUse, data.quantity, identifiedProduct.price);
+    if (priceToUse === undefined) {
+         toast({
+            variant: "destructive",
+            title: "Price Not Available",
+            description: "Please ensure a price is set (either by AI or manually).",
+        });
+        return;
+    }
+
+    onAddItem(currentProductName, priceToUse, data.quantity, identifiedProduct?.price ?? priceToUse);
 
     reset();
     setIdentifiedProduct(null);
-    if (isCameraMode) memoizedToggleCameraMode(); 
+    if (isCameraMode) handleToggleCameraMode();
   };
+
+  const handleClearForm = () => {
+    reset();
+    setIdentifiedProduct(null);
+    if (isCameraMode) handleToggleCameraMode();
+  }
+
+  const anyLoading = isIdentifying || isProcessingBarcode || isFetchingManualPrice;
 
   return (
     <Card className="shadow-lg">
       <CardHeader>
         <div className="flex justify-between items-center">
           <CardTitle className="flex items-center text-xl font-headline">
-            <ScanSearch className="mr-2 h-6 w-6 text-primary" /> Add Product via Camera
+            <ScanSearch className="mr-2 h-6 w-6 text-primary" /> Add Product
           </CardTitle>
-          <Button variant="outline" onClick={memoizedToggleCameraMode} size="sm">
-            <Camera className="mr-2 h-4 w-4" /> {isCameraMode ? 'Close Camera' : 'Scan Product'}
+          <Button variant="outline" onClick={handleToggleCameraMode} size="sm" disabled={anyLoading}>
+            <Camera className="mr-2 h-4 w-4" /> {isCameraMode ? 'Close Camera' : 'Scan with Camera'}
           </Button>
         </div>
       </CardHeader>
@@ -313,7 +391,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70">
                     <Zap className="h-12 w-12 text-primary animate-pulse mb-2" />
                     <p className="text-primary-foreground font-semibold">
-                        {isProcessingBarcode && !isIdentifying ? "Processing Barcode..." : `Identifying Product (in ${selectedCurrencyCode})...`}
+                        {isProcessingBarcode && isIdentifying ? "Processing Barcode..." : (isIdentifying ? `Identifying Product (in ${selectedCurrencyCode})...` : "Loading...")}
                     </p>
                     <Skeleton className="h-4 w-3/4 mt-2 bg-slate-700" />
                     <Skeleton className="h-4 w-1/2 mt-1 bg-slate-700" />
@@ -349,6 +427,40 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
           </div>
         ) : (
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+            
+            <div className="space-y-2">
+                <Label htmlFor="manualProductName" className="font-medium flex items-center">
+                    <Edit className="mr-2 h-4 w-4 text-muted-foreground" /> Product Name (Manual Entry)
+                </Label>
+                <div className="flex space-x-2">
+                    <Controller
+                        name="manualProductName"
+                        control={control}
+                        render={({ field }) => (
+                            <Input
+                            id="manualProductName"
+                            type="text"
+                            {...field}
+                            placeholder="Type product name here"
+                            aria-label="Manual Product Name"
+                            disabled={anyLoading}
+                            />
+                        )}
+                    />
+                    <Button 
+                        type="button" 
+                        onClick={handleFetchPriceForManualName} 
+                        disabled={anyLoading || !manualProductNameWatch?.trim()}
+                        variant="outline"
+                    >
+                        {isFetchingManualPrice ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+                        Get AI Price
+                    </Button>
+                </div>
+                {errors.manualProductName && <p className="text-sm text-destructive">{errors.manualProductName.message}</p>}
+            </div>
+
+
             {identifiedProduct && (
               <Card className="p-4 bg-primary/10 border-primary/30">
                 <p className="text-sm text-foreground">
@@ -359,13 +471,12 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
                 </p>
               </Card>
             )}
-             {!identifiedProduct && (
-                 <div className="text-center py-4 text-muted-foreground">
-                    <Barcode className="mx-auto h-10 w-10 mb-2"/>
-                    <p>Use the 'Scan Product' button above to activate the camera for barcode scanning or image identification.</p>
+             {!identifiedProduct && !isCameraMode && !isFetchingManualPrice && (
+                 <div className="text-center py-4 text-muted-foreground border-t border-dashed mt-4 pt-4">
+                    <Barcode className="mx-auto h-8 w-8 mb-2 opacity-50"/>
+                    <p className="text-xs">Or use 'Scan with Camera' to use barcode/image identification.</p>
                 </div>
             )}
-
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -382,7 +493,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
                       onChange={e => field.onChange(parseInt(e.target.value,10) || 1)}
                       min="1"
                       aria-label="Quantity"
-                      disabled={!identifiedProduct}
+                      disabled={anyLoading || (!identifiedProduct && !overridePrice)}
                     />
                   )}
                 />
@@ -400,6 +511,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
                         id="manualPrice"
                         type="number"
                         step="0.01"
+                        min="0"
                         {...field}
                         value={field.value === undefined ? '' : field.value}
                         onChange={e => {
@@ -411,7 +523,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
                                 field.onChange(isNaN(numValue) ? undefined : numValue);
                             }
                         }}
-                        disabled={!overridePrice || !identifiedProduct}
+                        disabled={!overridePrice || anyLoading || (!identifiedProduct && !getValues('manualProductName')?.trim())}
                         className="pl-8"
                         aria-label="Manual Price"
                         placeholder={identifiedProduct && !overridePrice ? identifiedProduct.price.toFixed(2) : "0.00"}
@@ -432,21 +544,26 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
                     id="overridePrice"
                     checked={!!field.value}
                     onCheckedChange={field.onChange}
-                    disabled={!identifiedProduct}
+                    disabled={anyLoading || (!identifiedProduct && !getValues('manualProductName')?.trim())}
                     aria-labelledby="overridePriceLabel"
                   />
                 )}
               />
               <Label htmlFor="overridePrice" id="overridePriceLabel" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                Override AI Price
+                Override AI / Set Manual Price
               </Label>
             </div>
 
-            <div className="flex justify-end space-x-3">
-               <Button type="button" variant="outline" onClick={() => { reset(); setIdentifiedProduct(null); }} aria-label="Clear form">
+            <div className="flex justify-end space-x-3 border-t pt-4">
+               <Button type="button" variant="outline" onClick={handleClearForm} aria-label="Clear form" disabled={anyLoading}>
                 <XCircle className="mr-2 h-4 w-4" /> Clear
               </Button>
-              <Button type="submit" className="bg-primary hover:bg-primary/90 text-primary-foreground" aria-label="Add item to bill" disabled={!identifiedProduct || isIdentifying}>
+              <Button 
+                type="submit" 
+                className="bg-primary hover:bg-primary/90 text-primary-foreground" 
+                aria-label="Add item to bill" 
+                disabled={anyLoading || (!identifiedProduct && !(overridePrice && getValues('manualProductName')?.trim() && getValues('manualPrice') !== undefined))}
+               >
                 <PlusCircle className="mr-2 h-4 w-4" /> Add Item to Bill
               </Button>
             </div>
