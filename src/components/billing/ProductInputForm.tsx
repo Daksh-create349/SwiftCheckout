@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
@@ -49,12 +50,13 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
 
   const overridePrice = watch('overridePrice');
   const manualProductNameWatch = watch('manualProductName');
+  const previousCurrencyCodeRef = useRef<string>(selectedCurrencyCode);
+
 
   useEffect(() => {
     if (identifiedProduct && !overridePrice) {
       setValue('manualPrice', identifiedProduct.price);
     } else if (!identifiedProduct && !overridePrice) {
-       // Keep manualPrice if overridePrice is checked, otherwise clear it.
        if (!overridePrice) setValue('manualPrice', undefined);
     }
   }, [identifiedProduct, overridePrice, setValue]);
@@ -144,13 +146,12 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
     }
 
     return () => {
-      if (isCameraMode) {
-        if (codeReaderRef.current) {
+      // Ensure camera is stopped when component unmounts or isCameraMode becomes false
+      if (codeReaderRef.current) {
           codeReaderRef.current.reset();
           codeReaderRef.current = null;
-        }
-        stopCameraStream();
       }
+      stopCameraStream();
     };
   }, [isCameraMode, requestCameraPermission, stopCameraStream]);
 
@@ -164,7 +165,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
         reader.decodeFromContinuously(videoRef.current, (result, error) => {
           if (result && !isProcessingBarcode && codeReaderRef.current && !isIdentifying && !isFetchingManualPrice) {
             setIsProcessingBarcode(true);
-            setIsIdentifying(true);
+            setIsIdentifying(true); // Use isIdentifying to cover general AI activity from camera
 
             const barcodeText = result.getText();
 
@@ -178,7 +179,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
                   title: "Barcode Scanned",
                   description: `Product: ${aiResult.name}. AI Price: ${selectedCurrencySymbol}${aiResult.price.toFixed(2)}. Adjust if needed.`
                 });
-                handleToggleCameraMode();
+                handleToggleCameraMode(); 
                 setFocus('quantity');
               })
               .catch(apiError => {
@@ -188,13 +189,14 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
                   title: "AI Error (Barcode)",
                   description: (apiError as Error).message || `Failed to get price for product '${barcodeText}'.`
                 });
-                setIsProcessingBarcode(false);
+                // Do not toggle camera mode on error, allow user to try image capture
               })
               .finally(() => {
-                setIsIdentifying(false);
+                setIsProcessingBarcode(false); // Reset barcode-specific flag
+                setIsIdentifying(false); // Reset general AI activity flag
                  if (codeReaderRef.current) {
-                    codeReaderRef.current.reset();
-                    codeReaderRef.current = null; // Ensure it's reset for next attempt
+                    codeReaderRef.current.reset(); // Stop decoding
+                    codeReaderRef.current = null; 
                 }
               });
           }
@@ -204,13 +206,14 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
         }).catch(startError => {
           console.error("Failed to start barcode continuous decoding:", startError);
           if(!(startError instanceof DOMException && startError.name === 'NotSupportedError')){
-            toast({ variant: "destructive", title: "Scanner Error", description: "Could not start barcode scanner." });
+             // Avoid toast for common browser/environment issues like no camera access for this API
           }
           if (codeReaderRef.current) {
               codeReaderRef.current.reset();
               codeReaderRef.current = null;
           }
           setIsProcessingBarcode(false);
+          setIsIdentifying(false);
         });
       }
     }
@@ -242,11 +245,11 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
        toast({ variant: "destructive", title: "Capture Error", description: "Camera not ready or permission denied." });
        return;
     }
-    if (codeReaderRef.current) {
+    if (codeReaderRef.current) { // Stop barcode scanning if active
         codeReaderRef.current.reset();
         codeReaderRef.current = null;
     }
-    setIsProcessingBarcode(true);
+    // No need to set isProcessingBarcode to true here, this is image identification
     setIsIdentifying(true);
     setCameraError(null);
 
@@ -259,7 +262,6 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
     if (!context) {
         toast({ variant: "destructive", title: "Canvas Error", description: "Could not get canvas context." });
         setIsIdentifying(false);
-        setIsProcessingBarcode(false);
         return;
     }
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -280,7 +282,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
       setIdentifiedProduct(null);
       setValue('manualProductName', '');
       toast({ variant: "destructive", title: "AI Error", description: (error as Error).message || `Failed to identify product in ${selectedCurrencyCode}.` });
-      setIsProcessingBarcode(false);
+      // Do not set isProcessingBarcode here
     } finally {
       setIsIdentifying(false);
     }
@@ -293,13 +295,13 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
       return;
     }
     setIsFetchingManualPrice(true);
-    setIdentifiedProduct(null); // Clear previous identification
+    setIdentifiedProduct(null); 
     try {
       const result = await getProductPriceByName({ productName, currencyCode: selectedCurrencyCode });
-      setIdentifiedProduct({ name: result.name, price: result.price }); // Use AI returned name for consistency
+      setIdentifiedProduct({ name: result.name, price: result.price }); 
       setValue('manualPrice', result.price);
       setValue('overridePrice', false);
-      setValue('manualProductName', result.name); // Update with AI's version of the name
+      setValue('manualProductName', result.name); 
       toast({
         title: "AI Price Fetched",
         description: `Product: ${result.name}. AI Price: ${selectedCurrencySymbol}${result.price.toFixed(2)}. Adjust if needed.`
@@ -318,6 +320,64 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
     }
   };
 
+  // Effect to re-fetch price if currency changes for an identified product (not overridden)
+  useEffect(() => {
+    const currentProductName = identifiedProduct?.name;
+    const overrideIsChecked = getValues('overridePrice');
+
+    if (
+      previousCurrencyCodeRef.current !== selectedCurrencyCode &&
+      currentProductName &&
+      !isCameraMode &&
+      !isIdentifying &&
+      !isProcessingBarcode &&
+      !isFetchingManualPrice &&
+      !overrideIsChecked
+    ) {
+      const reFetchPriceForNewCurrency = async () => {
+        setIsFetchingManualPrice(true); // Indicate loading
+        try {
+          toast({
+            title: "Currency Changed",
+            description: `Updating AI price for ${currentProductName} to ${selectedCurrencyCode}...`
+          });
+          const result = await getProductPriceByName({ productName: currentProductName, currencyCode: selectedCurrencyCode });
+          setIdentifiedProduct({ name: result.name, price: result.price });
+          setValue('manualPrice', result.price);
+          setValue('manualProductName', result.name); // Update name if AI refines it
+          toast({
+            title: "Price Updated",
+            description: `AI Price for ${result.name} is now ${selectedCurrencySymbol}${result.price.toFixed(2)}.`
+          });
+        } catch (apiError) {
+          console.error("Error re-fetching price for new currency:", apiError);
+          toast({
+            variant: "destructive",
+            title: "AI Pricing Error",
+            description: (apiError as Error).message || `Could not update price for '${currentProductName}' in ${selectedCurrencyCode}. Previous price retained.`
+          });
+          // Optionally: revert identifiedProduct or clear price if re-fetch fails critically
+        } finally {
+          setIsFetchingManualPrice(false);
+        }
+      };
+      reFetchPriceForNewCurrency();
+    }
+    previousCurrencyCodeRef.current = selectedCurrencyCode;
+  }, [
+    selectedCurrencyCode, 
+    selectedCurrencySymbol, 
+    identifiedProduct?.name, // Only depend on name, price will be re-fetched
+    isCameraMode, 
+    isIdentifying, 
+    isProcessingBarcode, 
+    isFetchingManualPrice, 
+    setValue, 
+    getValues, 
+    toast,
+    setIdentifiedProduct // Added setIdentifiedProduct
+  ]);
+
 
   const onSubmit: SubmitHandler<ProductInputFormValues> = (data) => {
     const currentProductName = identifiedProduct?.name || data.manualProductName;
@@ -331,7 +391,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
       return;
     }
     
-    if (!identifiedProduct && !data.overridePrice) {
+    if (!identifiedProduct && !data.overridePrice && !data.manualPrice) {
       toast({
         variant: "destructive",
         title: "Price Not Set",
@@ -357,7 +417,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
 
     reset();
     setIdentifiedProduct(null);
-    if (isCameraMode) handleToggleCameraMode();
+    if (isCameraMode) handleToggleCameraMode(); // Close camera after adding
   };
 
   const handleClearForm = () => {
@@ -386,12 +446,12 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
             <h3 className="text-lg font-medium mb-2 text-center">Camera View</h3>
             {hasCameraPermission === true && <p className="text-center text-sm text-muted-foreground mb-2">Scanning for barcodes... Or use button for image identification.</p>}
             <div className="relative aspect-video bg-slate-800 rounded-md overflow-hidden">
-              <video ref={videoRef} className="w-full h-full object-cover" playsInline muted autoPlay />
+               <video ref={videoRef} className="w-full h-full object-cover" playsInline muted autoPlay />
               {(isIdentifying || isProcessingBarcode) && hasCameraPermission === true && (
                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70">
                     <Zap className="h-12 w-12 text-primary animate-pulse mb-2" />
                     <p className="text-primary-foreground font-semibold">
-                        {isProcessingBarcode && isIdentifying ? "Processing Barcode..." : (isIdentifying ? `Identifying Product (in ${selectedCurrencyCode})...` : "Loading...")}
+                        {isProcessingBarcode ? "Processing Barcode..." : (isIdentifying ? `Identifying Product (in ${selectedCurrencyCode})...` : "Loading...")}
                     </p>
                     <Skeleton className="h-4 w-3/4 mt-2 bg-slate-700" />
                     <Skeleton className="h-4 w-1/2 mt-1 bg-slate-700" />
@@ -416,7 +476,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
             )}
             <Button
               onClick={handleCaptureAndIdentify}
-              disabled={isIdentifying || isProcessingBarcode || hasCameraPermission !== true}
+              disabled={anyLoading || hasCameraPermission !== true}
               className="w-full mt-4 bg-primary hover:bg-primary/90"
               aria-label="Capture image and identify product"
             >
@@ -471,12 +531,21 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
                 </p>
               </Card>
             )}
-             {!identifiedProduct && !isCameraMode && !isFetchingManualPrice && (
+             {!identifiedProduct && !isCameraMode && !anyLoading && (
                  <div className="text-center py-4 text-muted-foreground border-t border-dashed mt-4 pt-4">
                     <Barcode className="mx-auto h-8 w-8 mb-2 opacity-50"/>
                     <p className="text-xs">Or use 'Scan with Camera' to use barcode/image identification.</p>
                 </div>
             )}
+            {anyLoading && !isCameraMode && (
+                <div className="text-center py-4">
+                    <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
+                    <p className="text-muted-foreground mt-2">
+                        {isFetchingManualPrice ? `Fetching AI price for ${getValues('manualProductName')} in ${selectedCurrencyCode}...` : 'Loading...'}
+                    </p>
+                </div>
+            )}
+
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -493,7 +562,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
                       onChange={e => field.onChange(parseInt(e.target.value,10) || 1)}
                       min="1"
                       aria-label="Quantity"
-                      disabled={anyLoading || (!identifiedProduct && !overridePrice)}
+                      disabled={anyLoading || (!identifiedProduct && !overridePrice && !getValues('manualPrice'))}
                     />
                   )}
                 />
@@ -562,7 +631,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
                 type="submit" 
                 className="bg-primary hover:bg-primary/90 text-primary-foreground" 
                 aria-label="Add item to bill" 
-                disabled={anyLoading || (!identifiedProduct && !(overridePrice && getValues('manualProductName')?.trim() && getValues('manualPrice') !== undefined))}
+                disabled={anyLoading || (!identifiedProduct && !(overridePrice && getValues('manualProductName')?.trim() && getValues('manualPrice') !== undefined)) && !(identifiedProduct && getValues('manualPrice') !== undefined) }
                >
                 <PlusCircle className="mr-2 h-4 w-4" /> Add Item to Bill
               </Button>
@@ -573,3 +642,4 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
     </Card>
   );
 }
+
