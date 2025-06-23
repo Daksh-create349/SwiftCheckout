@@ -15,9 +15,10 @@ interface CrossSellSuggestionsProps {
   error?: string | null;
   onAddSuggestion: (productName: string) => Promise<void>;
   cartItems: CartItem[];
+  disabled?: boolean;
 }
 
-export function CrossSellSuggestions({ suggestions, isLoading, error, onAddSuggestion, cartItems }: CrossSellSuggestionsProps) {
+export function CrossSellSuggestions({ suggestions, isLoading, error, onAddSuggestion, cartItems, disabled = false }: CrossSellSuggestionsProps) {
   const [isAdding, setIsAdding] = useState<string | null>(null);
 
   const handleCheckChange = async (productName: string) => {
@@ -65,7 +66,7 @@ export function CrossSellSuggestions({ suggestions, isLoading, error, onAddSugge
                   <Checkbox
                     id={checkboxId}
                     checked={isInCart}
-                    disabled={isInCart || currentlyAdding}
+                    disabled={disabled || isInCart || currentlyAdding}
                     onCheckedChange={(checked) => {
                       if (checked === true) {
                         handleCheckChange(suggestion);

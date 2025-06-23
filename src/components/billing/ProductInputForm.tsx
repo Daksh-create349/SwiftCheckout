@@ -33,9 +33,10 @@ interface ProductInputFormProps {
   onAddItem: (name: string, price: number, quantity: number, originalPrice: number) => void;
   selectedCurrencyCode: string;
   selectedCurrencySymbol: string;
+  disabled?: boolean;
 }
 
-export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurrencySymbol }: ProductInputFormProps) {
+export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurrencySymbol, disabled = false }: ProductInputFormProps) {
   const { toast } = useToast();
   const [identifiedProduct, setIdentifiedProduct] = useState<IdentifyProductOutput | null>(null);
   const [productImagePreviewUrl, setProductImagePreviewUrl] = useState<string | null>(null);
@@ -159,6 +160,11 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
   }, [toast, stopCameraStream]);
 
 
+  const handleToggleCameraMode = useCallback(() => {
+    setIsCameraMode(prevIsCameraMode => !prevIsCameraMode);
+  }, []);
+
+
   // Combined effect for camera lifecycle and form reset on activation
   useEffect(() => {
     if (isCameraMode) {
@@ -171,12 +177,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
       setCameraError(null);
       setIsIdentifying(false);
     }
-  }, [isCameraMode, reset, setIdentifiedProduct, requestCameraPermission, stopCameraStream, clearProductImageStates]);
-
-
-  const handleToggleCameraMode = useCallback(() => {
-    setIsCameraMode(prevIsCameraMode => !prevIsCameraMode);
-  }, [setIsCameraMode]);
+  }, [isCameraMode, reset, requestCameraPermission, stopCameraStream, clearProductImageStates]);
 
 
   const handleCaptureAndIdentify = async () => {
@@ -394,7 +395,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
           <CardTitle className="flex items-center text-xl font-headline">
             <ScanSearch className="mr-2 h-6 w-6 text-primary" /> Add Product
           </CardTitle>
-          <Button variant="outline" onClick={handleToggleCameraMode} size="sm" disabled={anyAILoading && isCameraMode}>
+          <Button variant="outline" onClick={handleToggleCameraMode} size="sm" disabled={disabled || (anyAILoading && isCameraMode)}>
             <Camera className="mr-2 h-4 w-4" /> {isCameraMode ? 'Close Camera' : 'Scan with Camera'}
           </Button>
         </div>
@@ -438,7 +439,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
 
             <Button
               onClick={handleCaptureAndIdentify}
-              disabled={isIdentifying || !cameraActiveAndReady}
+              disabled={disabled || isIdentifying || !cameraActiveAndReady}
               className="w-full mt-4 bg-primary hover:bg-primary/90"
               aria-label="Capture image and identify product"
             >
@@ -465,7 +466,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
                             {...field}
                             placeholder="Type product name here"
                             aria-label="Manual Product Name"
-                            disabled={anyAILoading}
+                            disabled={disabled || anyAILoading}
                             onChange={(e) => {
                                 field.onChange(e);
                                 if (identifiedProduct && e.target.value !== identifiedProduct.name) {
@@ -479,7 +480,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
                     <Button 
                         type="button" 
                         onClick={handleFetchPriceForManualName} 
-                        disabled={anyAILoading || !manualProductNameWatch?.trim()}
+                        disabled={disabled || anyAILoading || !manualProductNameWatch?.trim()}
                         variant="outline"
                     >
                         {isFetchingManualPrice ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
@@ -563,7 +564,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
                       onChange={e => field.onChange(parseInt(e.target.value,10) || 1)}
                       min="1"
                       aria-label="Quantity"
-                      disabled={anyAILoading || (!identifiedProduct && !overridePrice && getValues('manualPrice') === undefined)}
+                      disabled={disabled || anyAILoading || (!identifiedProduct && !overridePrice && getValues('manualPrice') === undefined)}
                     />
                   )}
                 />
@@ -593,7 +594,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
                                 field.onChange(isNaN(numValue) ? undefined : numValue);
                             }
                         }}
-                        disabled={!overridePrice || anyAILoading || (!identifiedProduct && !getValues('manualProductName')?.trim())}
+                        disabled={disabled || !overridePrice || anyAILoading || (!identifiedProduct && !getValues('manualProductName')?.trim())}
                         className="pl-8"
                         aria-label="Manual Price"
                         placeholder={identifiedProduct && !overridePrice ? identifiedProduct.price.toFixed(2) : "0.00"}
@@ -614,7 +615,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
                     id="overridePrice"
                     checked={!!field.value}
                     onCheckedChange={field.onChange}
-                    disabled={anyAILoading || (!identifiedProduct && !getValues('manualProductName')?.trim())}
+                    disabled={disabled || anyAILoading || (!identifiedProduct && !getValues('manualProductName')?.trim())}
                     aria-labelledby="overridePriceLabel"
                   />
                 )}
@@ -625,14 +626,14 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
             </div>
 
             <div className="flex justify-end space-x-3 border-t pt-4">
-               <Button type="button" variant="outline" onClick={handleClearForm} aria-label="Clear form" disabled={anyAILoading}>
+               <Button type="button" variant="outline" onClick={handleClearForm} aria-label="Clear form" disabled={disabled || anyAILoading}>
                 <XCircle className="mr-2 h-4 w-4" /> Clear
               </Button>
               <Button 
                 type="submit" 
                 className="bg-primary hover:bg-primary/90 text-primary-foreground" 
                 aria-label="Add item to bill" 
-                disabled={anyAILoading || (!identifiedProduct && !(overridePrice && getValues('manualProductName')?.trim() && getValues('manualPrice') !== undefined)) && !(identifiedProduct && (getValues('manualPrice') !== undefined || !overridePrice) ) }
+                disabled={disabled || anyAILoading || (!identifiedProduct && !(overridePrice && getValues('manualProductName')?.trim() && getValues('manualPrice') !== undefined)) && !(identifiedProduct && (getValues('manualPrice') !== undefined || !overridePrice) ) }
                >
                 <PlusCircle className="mr-2 h-4 w-4" /> Add Item to Bill
               </Button>

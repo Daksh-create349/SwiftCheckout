@@ -15,9 +15,10 @@ interface ItemListProps {
   onRemoveItem: (itemId: string) => void;
   onUpdateQuantity: (itemId: string, newQuantity: number) => void;
   currencySymbol: string;
+  disabled?: boolean;
 }
 
-export function ItemList({ items, onRemoveItem, onUpdateQuantity, currencySymbol }: ItemListProps) {
+export function ItemList({ items, onRemoveItem, onUpdateQuantity, currencySymbol, disabled = false }: ItemListProps) {
 
   const handleQuantityChange = (itemId: string, currentQuantity: number, change: number) => {
     const newQuantity = currentQuantity + change;
@@ -74,6 +75,7 @@ export function ItemList({ items, onRemoveItem, onUpdateQuantity, currencySymbol
                           className="h-7 w-7"
                           onClick={() => handleQuantityChange(item.id, item.quantity, -1)}
                           aria-label={`Decrease quantity of ${item.name}`}
+                          disabled={disabled}
                         >
                           <Minus className="h-4 w-4" />
                         </Button>
@@ -84,6 +86,7 @@ export function ItemList({ items, onRemoveItem, onUpdateQuantity, currencySymbol
                           className="w-12 h-8 text-center appearance-none [-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           min="1"
                           aria-label={`Quantity of ${item.name}`}
+                          disabled={disabled}
                         />
                         <Button
                           variant="ghost"
@@ -91,6 +94,7 @@ export function ItemList({ items, onRemoveItem, onUpdateQuantity, currencySymbol
                           className="h-7 w-7"
                           onClick={() => handleQuantityChange(item.id, item.quantity, 1)}
                           aria-label={`Increase quantity of ${item.name}`}
+                          disabled={disabled}
                         >
                           <Plus className="h-4 w-4" />
                         </Button>
@@ -105,6 +109,7 @@ export function ItemList({ items, onRemoveItem, onUpdateQuantity, currencySymbol
                         className="text-destructive hover:text-destructive/80 h-8 w-8"
                         onClick={() => onRemoveItem(item.id)}
                         aria-label={`Remove ${item.name} from bill`}
+                        disabled={disabled}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>

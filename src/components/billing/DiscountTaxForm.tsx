@@ -24,9 +24,10 @@ interface DiscountTaxFormProps {
   onApplyTax: (percentage: number) => void;
   currentDiscount: number;
   currentTax: number;
+  disabled?: boolean;
 }
 
-export function DiscountTaxForm({ onApplyDiscount, onApplyTax, currentDiscount, currentTax }: DiscountTaxFormProps) {
+export function DiscountTaxForm({ onApplyDiscount, onApplyTax, currentDiscount, currentTax, disabled = false }: DiscountTaxFormProps) {
   const { control, handleSubmit, setValue } = useForm<DiscountTaxFormValues>({
     resolver: zodResolver(DiscountTaxSchema),
     defaultValues: {
@@ -84,6 +85,7 @@ export function DiscountTaxForm({ onApplyDiscount, onApplyTax, currentDiscount, 
                   placeholder="e.g. 10 for 10%" 
                   min="0" max="100"
                   aria-label="Discount Percentage"
+                  disabled={disabled}
                 />
               )}
             />
@@ -116,11 +118,12 @@ export function DiscountTaxForm({ onApplyDiscount, onApplyTax, currentDiscount, 
                   placeholder="e.g. 5 for 5%" 
                   min="0" max="100"
                   aria-label="Tax Percentage"
+                  disabled={disabled}
                 />
               )}
             />
           </div>
-          <Button type="submit" className="w-full bg-accent hover:bg-accent/90 text-accent-foreground" aria-label="Apply adjustments">
+          <Button type="submit" className="w-full bg-accent hover:bg-accent/90 text-accent-foreground" aria-label="Apply adjustments" disabled={disabled}>
             Apply Adjustments
           </Button>
         </form>
@@ -128,4 +131,3 @@ export function DiscountTaxForm({ onApplyDiscount, onApplyTax, currentDiscount, 
     </Card>
   );
 }
-

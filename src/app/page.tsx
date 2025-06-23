@@ -42,6 +42,7 @@ export default function SwiftCheckoutPage() {
   const [selectedCurrencyCode, setSelectedCurrencyCode] = useState<string>(DEFAULT_CURRENCY_CODE);
   const [isSensorScrollingEnabled, setIsSensorScrollingEnabled] = useState<boolean>(false);
   const [sensorError, setSensorError] = useState<string | null>(null);
+  const [isUpdatingPrices, setIsUpdatingPrices] = useState<boolean>(false);
 
 
   const { toast } = useToast();
@@ -266,21 +267,58 @@ export default function SwiftCheckoutPage() {
     });
   };
 
-  const handleCurrencyChange = (value: string) => {
-    if (cartItems.length > 0) {
+  const handleCurrencyChange = async (newCurrencyCode: string) => {
+    if (isUpdatingPrices) {
+        toast({ title: "Please wait", description: "Already updating prices." });
+        return;
+    }
+
+    const previousCurrencyCode = selectedCurrencyCode;
+    setSelectedCurrencyCode(newCurrencyCode);
+
+    if (cartItems.length === 0) {
         toast({
-            variant: "destructive",
-            title: "Cannot Change Currency",
-            description: "Please clear the current bill before changing currency to avoid pricing inconsistencies.",
+            title: "Currency Updated",
+            description: `Currency changed to ${newCurrencyCode}. AI price estimates will now be in ${newCurrencyCode}.`,
         });
         return;
     }
-    setSelectedCurrencyCode(value);
+
+    setIsUpdatingPrices(true);
     toast({
-        title: "Currency Updated",
-        description: `Currency changed to ${value} (${getCurrencySymbol(value)}). AI price estimates will now be in ${value}.`,
+        title: "Updating Prices...",
+        description: `Fetching new prices for all cart items in ${newCurrencyCode}.`,
     });
-  };
+
+    try {
+        const updatedItems = await Promise.all(
+            cartItems.map(async (item) => {
+                const priceResult = await getProductPriceByName({ productName: item.name, currencyCode: newCurrencyCode });
+                return {
+                    ...item,
+                    price: priceResult.price,
+                    originalPrice: priceResult.price,
+                };
+            })
+        );
+        setCartItems(updatedItems);
+        toast({
+            title: "Prices Updated",
+            description: `All item prices converted to ${newCurrencyCode}.`,
+            className: "bg-green-500 text-white",
+        });
+    } catch (error) {
+        console.error("Error updating prices:", error);
+        setSelectedCurrencyCode(previousCurrencyCode); // Revert on failure
+        toast({
+            variant: "destructive",
+            title: "Price Update Failed",
+            description: `Could not update prices. Reverting to ${previousCurrencyCode}.`,
+        });
+    } finally {
+        setIsUpdatingPrices(false);
+    }
+};
 
   const handleAddSuggestionToCart = async (productName: string) => {
     toast({ title: `Fetching price for ${productName}...`, description: "Please wait while we get the details." });
@@ -414,7 +452,8 @@ export default function SwiftCheckoutPage() {
                         aria-label="Toggle sensor-based scrolling"
                     />
                 </div>
-                 <Select value={selectedCurrencyCode} onValueChange={handleCurrencyChange}>
+                 {isUpdatingPrices && <Loader2 className="h-5 w-5 animate-spin text-primary" />}
+                 <Select value={selectedCurrencyCode} onValueChange={handleCurrencyChange} disabled={isUpdatingPrices}>
                     <SelectTrigger className="w-[120px] bg-card hover:bg-muted/50 transition-colors">
                         <Settings className="h-4 w-4 mr-1 text-muted-foreground" />
                         <SelectValue placeholder="Currency" />
@@ -431,15 +470,15 @@ export default function SwiftCheckoutPage() {
                     variant="default"
                     className="bg-accent hover:bg-accent/80 text-accent-foreground"
                     onClick={handleFinalizeBill}
-                    disabled={cartItems.length === 0 || isBillFinalized || isGeneratingBillImage}
+                    disabled={cartItems.length === 0 || isBillFinalized || isGeneratingBillImage || isUpdatingPrices}
                     aria-label="Finalize Bill"
                 >
-                    {isGeneratingBillImage && !isBillFinalized ? (
+                    {isUpdatingPrices ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : isGeneratingBillImage && !isBillFinalized ? (
                         <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                     ) : (
                         <CheckCircle className="mr-2 h-5 w-5" />
                     )}
-                    {isGeneratingBillImage && !isBillFinalized ? "Generating..." : "Finalize Bill"}
+                    {isUpdatingPrices ? "Updating..." : isGeneratingBillImage && !isBillFinalized ? "Generating..." : "Finalize Bill"}
                 </Button>
             </div>
           </div>
@@ -460,6 +499,7 @@ export default function SwiftCheckoutPage() {
                 onAddItem={handleAddItem}
                 selectedCurrencyCode={selectedCurrencyCode}
                 selectedCurrencySymbol={selectedCurrencySymbol}
+                disabled={isBillFinalized || isUpdatingPrices}
             />
           )}
           {isBillFinalized && cartItems.length > 0 && (
@@ -517,6 +557,7 @@ export default function SwiftCheckoutPage() {
             onRemoveItem={handleRemoveItem}
             onUpdateQuantity={handleUpdateQuantity}
             currencySymbol={selectedCurrencySymbol}
+            disabled={isUpdatingPrices}
           />
         </section>
 
@@ -534,6 +575,7 @@ export default function SwiftCheckoutPage() {
               onApplyTax={handleApplyTax}
               currentDiscount={discountPercentage}
               currentTax={taxPercentage}
+              disabled={isBillFinalized || isUpdatingPrices}
             />
           )}
           <CrossSellSuggestions
@@ -542,6 +584,7 @@ export default function SwiftCheckoutPage() {
             error={suggestionsError}
             onAddSuggestion={handleAddSuggestionToCart}
             cartItems={cartItems}
+            disabled={isUpdatingPrices}
           />
         </section>
       </main>
