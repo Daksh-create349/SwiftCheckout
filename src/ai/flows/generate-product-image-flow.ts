@@ -39,10 +39,10 @@ const generateProductImageFlow = ai.defineFlow(
     const promptText = `Generate a clear, high-quality, photorealistic image of a single '${input.productName}' on a plain white background. The product should be the main focus, well-lit, and centered. Avoid text or logos unless it's inherently part of the product itself.`;
 
     const {media} = await ai.generate({
-      model: 'googleai/gemini-2.0-flash-exp',
+      model: 'googleai/gemini-2.0-flash-preview-image-generation',
       prompt: promptText,
       config: {
-        responseModalities: ['IMAGE', 'TEXT'], 
+        responseModalities: ['IMAGE', 'TEXT'],
         safetySettings: [ // Added basic safety settings
             { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
             { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
