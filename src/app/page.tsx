@@ -21,6 +21,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { getCrossSellSuggestions, type CrossSellSuggestionInput } from '@/ai/flows/cross-sell-suggestion';
 import { generateBillImage, type GenerateBillImageInput } from '@/ai/flows/generate-bill-image-flow';
+import { getProductPriceByName } from '@/ai/flows/get-product-price-by-name-flow';
 import { Zap, AlertTriangle, CheckCircle, Printer, Loader2, CreditCard, Download, Settings, Move3d } from 'lucide-react';
 
 const SCROLL_THROTTLE_MS = 100;
@@ -281,6 +282,22 @@ export default function SwiftCheckoutPage() {
     });
   };
 
+  const handleAddSuggestionToCart = async (productName: string) => {
+    toast({ title: `Fetching price for ${productName}...`, description: "Please wait while we get the details." });
+    try {
+      const priceResult = await getProductPriceByName({ productName, currencyCode: selectedCurrencyCode });
+      handleAddItem(priceResult.name, priceResult.price, 1, priceResult.price);
+    } catch (error) {
+      console.error("Error fetching price for suggestion:", error);
+      toast({
+        variant: "destructive",
+        title: "Could Not Add Item",
+        description: (error as Error).message || `Failed to fetch price for ${productName}.`,
+      });
+    }
+  };
+
+
   const handleOrientation = useCallback((event: DeviceOrientationEvent) => {
     if (!isSensorScrollingEnabled) return;
 
@@ -319,8 +336,8 @@ export default function SwiftCheckoutPage() {
     if (typeof (DeviceOrientationEvent as any).requestPermission === 'function') { // Primarily for iOS Safari
       if (!permissionRequestedRef.current) { // Only request if not already attempted in this "on" cycle
         try {
-          const permissionState = await (DeviceOrientationEvent as any).requestPermission();
           permissionRequestedRef.current = true; // Mark that a permission attempt has been made
+          const permissionState = await (DeviceOrientationEvent as any).requestPermission();
           if (permissionState === 'granted') {
             window.addEventListener('deviceorientation', handleOrientation);
             toast({ title: "Sensor Scrolling Enabled", description: "Tilt your device to scroll." });
@@ -338,14 +355,10 @@ export default function SwiftCheckoutPage() {
           setIsSensorScrollingEnabled(false); // Turn the switch off on error
         }
       } else {
-        // If permissionRequestedRef.current is true, it means a request was made in this "on" cycle.
-        // We assume if it wasn't denied (which would've returned/set error), it was granted.
-        // This handles cases where the effect might re-run but permission is already sorted for this "session".
          window.addEventListener('deviceorientation', handleOrientation);
          toast({ title: "Sensor Scrolling Re-enabled", description: "Tilt your device to scroll." });
       }
     } else {
-      // For other browsers (Desktop, Android Chrome, etc.) that don't use requestPermission()
       window.addEventListener('deviceorientation', handleOrientation);
       toast({ 
         title: "Sensor Scrolling Enabled", 
@@ -360,7 +373,7 @@ export default function SwiftCheckoutPage() {
       requestAndAddListener();
     } else {
       window.removeEventListener('deviceorientation', handleOrientation);
-      setSensorError(null); // Clear error when user manually disables or it's disabled programmatically.
+      setSensorError(null); 
     }
 
     return () => {
@@ -370,12 +383,10 @@ export default function SwiftCheckoutPage() {
 
 
   const handleToggleSensorScrolling = (checked: boolean) => {
+    permissionRequestedRef.current = false; // Reset for a fresh permission request attempt if needed
     setIsSensorScrollingEnabled(checked);
-    if (checked) {
-      permissionRequestedRef.current = false; // Reset for a fresh permission request attempt if needed
-      setSensorError(null); 
-    } else {
-      // SensorError is cleared by the useEffect when isSensorScrollingEnabled becomes false
+    if (!checked) {
+       setSensorError(null); 
     }
   };
 
@@ -529,6 +540,8 @@ export default function SwiftCheckoutPage() {
             suggestions={crossSellSuggestions}
             isLoading={isSuggestionsLoading}
             error={suggestionsError}
+            onAddSuggestion={handleAddSuggestionToCart}
+            cartItems={cartItems}
           />
         </section>
       </main>
