@@ -9,12 +9,13 @@ import { TotalsDisplay } from '@/components/billing/TotalsDisplay';
 import { DiscountTaxForm } from '@/components/billing/DiscountTaxForm';
 import { CrossSellSuggestions } from '@/components/billing/CrossSellSuggestions';
 import { PaymentModal } from '@/components/billing/PaymentModal';
+import { BillHistory } from '@/components/billing/BillHistory';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from '@/hooks/use-toast';
 import { ToastAction } from "@/components/ui/toast";
-import type { CartItem, Currency } from '@/types/billing';
+import type { CartItem, Currency, BillRecord } from '@/types/billing';
 import { SUPPORTED_CURRENCIES, DEFAULT_CURRENCY_CODE, getCurrencySymbol } from '@/types/billing';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
@@ -43,6 +44,7 @@ export default function SwiftCheckoutPage() {
   const [isSensorScrollingEnabled, setIsSensorScrollingEnabled] = useState<boolean>(false);
   const [sensorError, setSensorError] = useState<string | null>(null);
   const [isUpdatingPrices, setIsUpdatingPrices] = useState<boolean>(false);
+  const [billHistory, setBillHistory] = useState<BillRecord[]>([]);
 
 
   const { toast } = useToast();
@@ -74,6 +76,18 @@ export default function SwiftCheckoutPage() {
     setTaxAmount(currentTaxAmount);
     setGrandTotal(currentGrandTotal);
   }, [cartItems, discountPercentage, taxPercentage, calculateSubtotal]);
+  
+  useEffect(() => {
+    try {
+      const storedHistory = localStorage.getItem('swiftCheckoutHistory');
+      if (storedHistory) {
+        setBillHistory(JSON.parse(storedHistory));
+      }
+    } catch (error) {
+      console.error("Could not load bill history from localStorage", error);
+      localStorage.removeItem('swiftCheckoutHistory');
+    }
+  }, []);
 
 
   const fetchCrossSellSuggestions = useCallback(async () => {
@@ -232,8 +246,30 @@ export default function SwiftCheckoutPage() {
   };
 
   const handlePaymentSelect = (method: string) => {
-    const currentBillImage = billImageDataUri;
+    const completedBill: BillRecord = {
+        id: `bill-${Date.now()}`,
+        date: new Date().toISOString(),
+        items: [...cartItems],
+        subtotal,
+        discountAmount,
+        taxAmount,
+        grandTotal,
+        currencySymbol: selectedCurrencySymbol,
+        billImageDataUri: billImageDataUri,
+    };
     const paidGrandTotal = grandTotal;
+    const currentBillImage = billImageDataUri;
+
+    setBillHistory(prevHistory => {
+        const newHistory = [completedBill, ...prevHistory];
+        try {
+            localStorage.setItem('swiftCheckoutHistory', JSON.stringify(newHistory));
+        } catch (error) {
+            console.error("Failed to save bill history to localStorage", error);
+            toast({ variant: "destructive", title: "History Save Error", description: "Could not save this bill to history." });
+        }
+        return newHistory;
+    });
 
     setIsPaymentModalOpen(false);
     setCartItems([]);
@@ -428,6 +464,17 @@ export default function SwiftCheckoutPage() {
     }
   };
 
+  const handleClearHistory = () => {
+    setBillHistory([]);
+    try {
+        localStorage.removeItem('swiftCheckoutHistory');
+        toast({ title: "History Cleared", description: "All past bills have been removed." });
+    } catch (error) {
+        console.error("Failed to clear bill history from localStorage", error);
+        toast({ variant: "destructive", title: "History Error", description: "Could not clear bill history." });
+    }
+  };
+
 
   return (
     <div className="min-h-screen flex flex-col p-4 md:p-6 lg:p-8 bg-background font-body">
@@ -586,6 +633,7 @@ export default function SwiftCheckoutPage() {
             cartItems={cartItems}
             disabled={isUpdatingPrices}
           />
+          <BillHistory history={billHistory} onClearHistory={handleClearHistory} />
         </section>
       </main>
 
@@ -603,4 +651,3 @@ export default function SwiftCheckoutPage() {
     </div>
   );
 }
-

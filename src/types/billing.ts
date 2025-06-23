@@ -21,6 +21,18 @@ export interface Currency {
   name: string;
 }
 
+export interface BillRecord {
+  id: string;
+  date: string;
+  items: CartItem[];
+  subtotal: number;
+  discountAmount: number;
+  taxAmount: number;
+  grandTotal: number;
+  currencySymbol: string;
+  billImageDataUri: string | null;
+}
+
 export const SUPPORTED_CURRENCIES: Currency[] = [
   { code: 'USD', symbol: '$', name: 'US Dollar' },
   { code: 'EUR', symbol: '€', name: 'Euro' },
