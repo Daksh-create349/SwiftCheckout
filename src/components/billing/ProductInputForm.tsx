@@ -43,6 +43,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
   const [productImagePreviewUrl, setProductImagePreviewUrl] = useState<string | null>(null);
   const [isGeneratingProductImage, setIsGeneratingProductImage] = useState<boolean>(false);
   const [productImageError, setProductImageError] = useState<string | null>(null);
+  const [isFetchingManualPrice, setIsFetchingManualPrice] = useState(false);
 
 
   const { control, handleSubmit, watch, setValue, reset, setFocus, getValues, formState: { errors } } = useForm<ProductInputFormValues>({
@@ -71,7 +72,6 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
   const [isCameraMode, setIsCameraMode] = useState(false);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const [isIdentifying, setIsIdentifying] = useState(false);
-  const [isFetchingManualPrice, setIsFetchingManualPrice] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -106,84 +106,91 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
     }
   }, []);
 
-  // Effect to manage camera lifecycle
-  useEffect(() => {
-    const enableCamera = async () => {
-        setCameraError(null);
-        setHasCameraPermission(null);
+  const stopCameraStream = useCallback(() => {
+      if (stream) {
+          stream.getTracks().forEach(track => track.stop());
+      }
+      if (videoRef.current) {
+          videoRef.current.srcObject = null;
+      }
+      setStream(null);
+  }, [stream]);
 
-        if (!navigator.mediaDevices?.getUserMedia) {
-            const errorMsg = "Camera API is not supported by your browser.";
-            setCameraError(errorMsg);
-            setHasCameraPermission(false);
-            toast({ variant: 'destructive', title: 'Camera Error', description: errorMsg });
-            setIsCameraMode(false); // Disable mode if unsupported
-            return;
-        }
+  const requestCameraPermission = useCallback(async () => {
+    setCameraError(null);
+    setHasCameraPermission(null);
 
-        try {
-            const mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-            setStream(mediaStream);
-            setHasCameraPermission(true);
-            if (videoRef.current) {
-                videoRef.current.srcObject = mediaStream;
-                await videoRef.current.play();
-            }
-        } catch (error) {
-            console.error('Error accessing camera:', error);
-            const errorName = (error as Error).name;
-            let errorMsg = 'Could not access the camera.';
-            if (errorName === 'NotAllowedError') {
-                errorMsg = 'Camera permission was denied. Please enable it in browser settings.';
-            } else if (errorName === 'NotFoundError') {
-                errorMsg = 'No camera found. Ensure a camera is connected.';
-            } else if (errorName === 'NotReadableError') {
-                errorMsg = 'Camera is in use by another app or hardware error.';
-            }
-
-            setCameraError(errorMsg);
-            setHasCameraPermission(false);
-            toast({ variant: 'destructive', title: 'Camera Access Error', description: errorMsg });
-            setIsCameraMode(false); // Disable mode on error
-        }
-    };
-
-    const stopCamera = () => {
-        if (stream) {
-            stream.getTracks().forEach(track => track.stop());
-        }
-        if (videoRef.current) {
-            videoRef.current.srcObject = null;
-        }
-        setStream(null);
-    };
-
-    if (isCameraMode) {
-        // Clear previous state when activating camera
-        setIdentifiedProduct(null);
-        clearProductImageStates();
-        reset({ manualProductName: '', quantity: 1, overridePrice: false, manualPrice: undefined });
-        enableCamera();
-    } else {
-        stopCamera();
-        setCameraError(null);
-        setIsIdentifying(false);
+    if (!navigator.mediaDevices?.getUserMedia) {
+        const errorMsg = "Camera API is not supported by your browser.";
+        setCameraError(errorMsg);
+        setHasCameraPermission(false);
+        toast({ variant: 'destructive', title: 'Camera Error', description: errorMsg });
+        setIsCameraMode(false);
+        return;
     }
 
-    return () => {
-        stopCamera(); // Cleanup on component unmount or if isCameraMode changes
-    };
-  }, [isCameraMode, reset, clearProductImageStates, toast]);
+    try {
+        const mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        setStream(mediaStream);
+        setHasCameraPermission(true);
+        if (videoRef.current) {
+            videoRef.current.srcObject = mediaStream;
+            await videoRef.current.play();
+        }
+    } catch (error) {
+        console.error('Error accessing camera:', error);
+        const errorName = (error as Error).name;
+        let errorMsg = 'Could not access the camera.';
+        if (errorName === 'NotAllowedError') {
+            errorMsg = 'Camera permission was denied. Please enable it in browser settings.';
+        } else if (errorName === 'NotFoundError') {
+            errorMsg = 'No camera found. Ensure a camera is connected.';
+        } else if (errorName === 'NotReadableError') {
+            errorMsg = 'Camera is in use by another app or hardware error.';
+        }
+
+        setCameraError(errorMsg);
+        setHasCameraPermission(false);
+        toast({ variant: 'destructive', title: 'Camera Access Error', description: errorMsg });
+        setIsCameraMode(false);
+    }
+  }, [toast]);
 
 
   const handleToggleCameraMode = () => {
-    setIsCameraMode(prev => !prev);
+      setIsCameraMode(prev => !prev);
   };
+
+  useEffect(() => {
+      if (isCameraMode) {
+          setIdentifiedProduct(null);
+          clearProductImageStates();
+          reset({ manualProductName: '', quantity: 1, overridePrice: false, manualPrice: undefined });
+          requestCameraPermission();
+      } else {
+          stopCameraStream();
+          setCameraError(null);
+          setIsIdentifying(false);
+      }
+
+      return () => {
+          if (isCameraMode) {
+              stopCameraStream();
+          }
+      };
+  }, [isCameraMode, reset, clearProductImageStates, requestCameraPermission, stopCameraStream]);
+
 
   const handleCaptureAndIdentify = async () => {
     if (!videoRef.current || !canvasRef.current || !stream || hasCameraPermission !== true) {
        toast({ variant: "destructive", title: "Capture Error", description: "Camera not ready or permission denied." });
        return;
+    }
+
+    const video = videoRef.current;
+    if (video.videoWidth === 0 || video.videoHeight === 0) {
+      toast({ variant: "destructive", title: "Capture Error", description: "Camera stream not yet available. Please try again." });
+      return;
     }
     
     setIsIdentifying(true);
@@ -191,8 +198,6 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
     setIdentifiedProduct(null); 
     clearProductImageStates();
 
-
-    const video = videoRef.current;
     const canvas = canvasRef.current;
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
@@ -402,7 +407,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
       </CardHeader>
       <CardContent>
         {/* The video and canvas are always in the DOM but hidden, to ensure refs are available. */}
-        <video ref={videoRef} className={cn("w-full h-full object-cover", !isCameraMode && 'hidden')} playsInline muted />
+        <video ref={videoRef} className="hidden" playsInline muted />
         <canvas ref={canvasRef} className="hidden"></canvas>
 
         {isCameraMode ? (
@@ -428,7 +433,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
                 <p className="text-center text-sm text-muted-foreground mb-2">Position the product and use the button below to identify.</p>
                 <div className="relative aspect-video bg-slate-800 rounded-md overflow-hidden">
                    {/* The video element is now outside this div, just controlled by className */}
-                   <div className={cn("absolute inset-0", !isCameraMode && 'hidden')}>
+                   <div className={cn("absolute inset-0")}>
                      <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
                    </div>
                   {isIdentifying && (
