@@ -425,7 +425,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
               </Alert>
             )}
             
-            <div className={cn("relative aspect-video bg-slate-800 rounded-md overflow-hidden", !cameraActiveAndReady && "hidden")}>
+            <div className={cn("relative aspect-video bg-slate-800 rounded-md overflow-hidden", !isCameraMode && "hidden")}>
                {/* This video tag is now always rendered */}
                <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
               {isIdentifying && (
