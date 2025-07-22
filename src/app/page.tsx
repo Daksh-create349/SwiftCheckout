@@ -407,10 +407,11 @@ export default function SwiftCheckoutPage() {
       return;
     }
     
-    if (typeof (DeviceOrientationEvent as any).requestPermission === 'function') { // Primarily for iOS Safari
-      if (!permissionRequestedRef.current) { // Only request if not already attempted in this "on" cycle
+    // Modern browsers require permission to be requested.
+    if (typeof (DeviceOrientationEvent as any).requestPermission === 'function') { 
+      if (!permissionRequestedRef.current) { 
         try {
-          permissionRequestedRef.current = true; // Mark that a permission attempt has been made
+          permissionRequestedRef.current = true;
           const permissionState = await (DeviceOrientationEvent as any).requestPermission();
           if (permissionState === 'granted') {
             window.addEventListener('deviceorientation', handleOrientation);
@@ -419,27 +420,28 @@ export default function SwiftCheckoutPage() {
             const errorMsg = "Permission for device orientation not granted.";
             setSensorError(errorMsg);
             toast({ variant: "destructive", title: "Sensor Permission Denied", description: errorMsg });
-            setIsSensorScrollingEnabled(false); // Turn the switch off if permission is explicitly denied
+            setIsSensorScrollingEnabled(false);
           }
         } catch (error) {
           console.error("Error requesting device orientation permission:", error);
           const errorMsg = "Failed to request device orientation permission. It might be blocked by your browser or OS settings.";
           setSensorError(errorMsg);
           toast({ variant: "destructive", title: "Sensor Request Error", description: errorMsg });
-          setIsSensorScrollingEnabled(false); // Turn the switch off on error
+          setIsSensorScrollingEnabled(false);
         }
       } else {
          window.addEventListener('deviceorientation', handleOrientation);
          toast({ title: "Sensor Scrolling Re-enabled", description: "Tilt your device to scroll." });
       }
     } else {
+      // For browsers that do not require explicit permission
       window.addEventListener('deviceorientation', handleOrientation);
       toast({ 
         title: "Sensor Scrolling Enabled", 
         description: "Attempting to use device sensors. If tilting does not work, your device/browser may lack support or permissions might be blocking access." 
       });
     }
-  }, [handleOrientation, toast, setIsSensorScrollingEnabled]); 
+  }, [handleOrientation, toast]); 
 
 
   useEffect(() => {
@@ -457,7 +459,7 @@ export default function SwiftCheckoutPage() {
 
 
   const handleToggleSensorScrolling = (checked: boolean) => {
-    permissionRequestedRef.current = false; // Reset for a fresh permission request attempt if needed
+    permissionRequestedRef.current = false;
     setIsSensorScrollingEnabled(checked);
     if (!checked) {
        setSensorError(null); 
@@ -495,7 +497,7 @@ export default function SwiftCheckoutPage() {
                         id="sensor-scrolling-switch"
                         checked={isSensorScrollingEnabled}
                         onCheckedChange={handleToggleSensorScrolling}
-                        disabled={!!sensorError && isSensorScrollingEnabled} // Disable if errored while enabled
+                        disabled={!!sensorError && isSensorScrollingEnabled}
                         aria-label="Toggle sensor-based scrolling"
                     />
                 </div>

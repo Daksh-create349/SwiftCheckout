@@ -119,7 +119,6 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
       if (videoRef.current) {
         videoRef.current.srcObject = null;
       }
-      stream = null;
     };
   
     const initializeCamera = async () => {
@@ -143,7 +142,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
         stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
-          await videoRef.current.play();
+          await videoRef.current.play(); // Explicitly wait for the video to play
           setHasCameraPermission(true);
         }
       } catch (error) {
@@ -161,7 +160,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
         setCameraError(errorMsg);
         setHasCameraPermission(false);
         toast({ variant: 'destructive', title: 'Camera Access Error', description: errorMsg });
-        setIsCameraMode(false);
+        setIsCameraMode(false); // Turn off camera mode on error
       }
     };
   
@@ -170,9 +169,10 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
     } else {
       stopCameraStream();
       setCameraError(null);
-      setIsIdentifying(false);
+      setIsIdentifying(false); // Reset identifying state when camera closes
     }
   
+    // Cleanup function to stop the stream when the component unmounts or mode changes
     return () => {
       stopCameraStream();
     };
@@ -184,7 +184,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
        toast({ variant: "destructive", title: "Capture Error", description: "Camera not ready or permission denied." });
        return;
     }
-
+    
     const video = videoRef.current;
     if (video.videoWidth === 0 || video.videoHeight === 0 || video.paused || video.ended) {
       toast({ variant: "destructive", title: "Capture Error", description: "Camera stream not yet available. Please try again." });
@@ -222,7 +222,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
         triggerProductImageGeneration(result.name);
       }
       
-      setIsCameraMode(false); // Close camera after successful identification
+      setIsCameraMode(false);
       setFocus('quantity');
     } catch (error) {
       console.error("Error identifying product:", error);
@@ -404,7 +404,6 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
         </div>
       </CardHeader>
       <CardContent>
-        {/* The video and canvas are always in the DOM but hidden, to ensure refs are available. */}
         <canvas ref={canvasRef} className="hidden"></canvas>
 
         {isCameraMode ? (
@@ -426,7 +425,6 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
             )}
             
             <div className={cn("relative aspect-video bg-slate-800 rounded-md overflow-hidden", !isCameraMode && "hidden")}>
-               {/* This video tag is now always rendered */}
                <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
               {isIdentifying && (
                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70">
