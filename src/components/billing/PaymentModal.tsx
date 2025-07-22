@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -16,7 +17,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { CreditCard, Smartphone, CircleDollarSign, X, ArrowLeft, ShieldCheck, MessageSquareWarning, RefreshCw } from 'lucide-react';
+import { CreditCard, QrCode, CircleDollarSign, X, ArrowLeft, ShieldCheck, MessageSquareWarning, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
@@ -30,7 +31,7 @@ interface PaymentModalProps {
 
 const paymentOptions = [
   { name: 'Credit Card', icon: CreditCard, id: 'credit_card' },
-  { name: 'Mobile Payment', icon: Smartphone, id: 'mobile_payment' },
+  { name: 'Mobile Payment', icon: QrCode, id: 'mobile_payment' },
   { name: 'Cash', icon: CircleDollarSign, id: 'cash' },
 ];
 
@@ -48,14 +49,12 @@ const CreditCardSchema = z.object({
 });
 type CreditCardFormValues = z.infer<typeof CreditCardSchema>;
 
-type PaymentStep = 'selectMethod' | 'enterMobile' | 'enterOtp' | 'enterCreditCard';
+type PaymentStep = 'selectMethod' | 'scanQrCode' | 'enterCreditCard';
 
 export function PaymentModal({ isOpen, onClose, onPaymentSelect, grandTotal, currencySymbol }: PaymentModalProps) {
   const [paymentStep, setPaymentStep] = useState<PaymentStep>('selectMethod');
-  const [mobileNumber, setMobileNumber] = useState('');
-  const [enteredOtp, setEnteredOtp] = useState('');
-  const [simulatedOtp, setSimulatedOtp] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isAwaitingScan, setIsAwaitingScan] = useState(false);
   const { toast } = useToast();
 
   const { register, handleSubmit, formState: { errors }, reset: resetCardForm } = useForm<CreditCardFormValues>({
@@ -66,51 +65,40 @@ export function PaymentModal({ isOpen, onClose, onPaymentSelect, grandTotal, cur
     if (isOpen) {
       // Reset state when modal opens or re-opens
       setPaymentStep('selectMethod');
-      setMobileNumber('');
-      setEnteredOtp('');
-      setSimulatedOtp('');
       setErrorMessage(null);
+      setIsAwaitingScan(false);
       resetCardForm();
     }
   }, [isOpen, resetCardForm]);
+  
+  // Simulate payment confirmation after QR code is shown
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (paymentStep === 'scanQrCode' && !isAwaitingScan) {
+        setIsAwaitingScan(true);
+        timer = setTimeout(() => {
+            onPaymentSelect('mobile_payment');
+            toast({
+                title: "Payment Confirmed",
+                description: "Payment received via QR code scan.",
+                className: "bg-green-500 text-white"
+            });
+        }, 4000); // Simulate a 4-second delay for scanning
+    }
+    return () => {
+        clearTimeout(timer);
+    };
+  }, [paymentStep, isAwaitingScan, onPaymentSelect, toast]);
 
   const handlePaymentOptionClick = (optionId: string) => {
     if (optionId === 'mobile_payment') {
-      setPaymentStep('enterMobile');
+      setPaymentStep('scanQrCode');
       setErrorMessage(null);
     } else if (optionId === 'credit_card') {
       setPaymentStep('enterCreditCard');
       setErrorMessage(null);
     } else {
       onPaymentSelect(optionId);
-    }
-  };
-
-  const handleSendOtp = () => {
-    setErrorMessage(null);
-    if (!/^\d{10}$/.test(mobileNumber)) { // Basic 10-digit validation
-      setErrorMessage("Please enter a valid 10-digit mobile number.");
-      return;
-    }
-    const otp = Math.floor(1000 + Math.random() * 9000).toString(); // Generate 4-digit OTP
-    setSimulatedOtp(otp);
-    setEnteredOtp(''); // Clear previous OTP entry on resend
-    toast({
-      title: "OTP Sent (Simulation)",
-      description: `For testing, your OTP is: ${otp}`,
-      duration: 10000, // Keep it visible longer for testing
-    });
-    if (paymentStep !== 'enterOtp') { // Only transition if not already on OTP screen (i.e., initial send)
-        setPaymentStep('enterOtp');
-    }
-  };
-
-  const handleVerifyOtp = () => {
-    setErrorMessage(null);
-    if (enteredOtp === simulatedOtp) {
-      onPaymentSelect('mobile_payment');
-    } else {
-      setErrorMessage("Invalid OTP. Please try again or resend.");
     }
   };
 
@@ -121,15 +109,13 @@ export function PaymentModal({ isOpen, onClose, onPaymentSelect, grandTotal, cur
 
   const handleBack = () => {
     setErrorMessage(null);
-    if (paymentStep === 'enterOtp') {
-      setPaymentStep('enterMobile');
-      setEnteredOtp('');
-    } else if (paymentStep === 'enterMobile' || paymentStep === 'enterCreditCard') {
-      setPaymentStep('selectMethod');
-      setMobileNumber('');
-      resetCardForm();
-    }
+    setPaymentStep('selectMethod');
+    setIsAwaitingScan(false);
+    resetCardForm();
   };
+  
+  const qrData = encodeURIComponent(`payment_total:${grandTotal.toFixed(2)}&currency:${currencySymbol}`);
+  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${qrData}`;
 
 
   if (!isOpen) return null;
@@ -140,8 +126,7 @@ export function PaymentModal({ isOpen, onClose, onPaymentSelect, grandTotal, cur
         <DialogHeader>
           <DialogTitle className="text-2xl font-headline text-center text-primary">
             {paymentStep === 'selectMethod' && 'Complete Payment'}
-            {paymentStep === 'enterMobile' && 'Mobile Payment'}
-            {paymentStep === 'enterOtp' && 'Verify OTP'}
+            {paymentStep === 'scanQrCode' && 'Scan QR Code'}
             {paymentStep === 'enterCreditCard' && 'Enter Card Details'}
           </DialogTitle>
           <DialogDescription className="text-center text-muted-foreground">
@@ -174,48 +159,21 @@ export function PaymentModal({ isOpen, onClose, onPaymentSelect, grandTotal, cur
           </div>
         )}
 
-        {paymentStep === 'enterMobile' && (
-          <div className="space-y-6 py-6">
-            <div className="space-y-2">
-              <Label htmlFor="mobileNumber" className="font-medium">Enter Mobile Number</Label>
-              <Input
-                id="mobileNumber"
-                type="tel"
-                value={mobileNumber}
-                onChange={(e) => setMobileNumber(e.target.value)}
-                placeholder="e.g., 1234567890"
-                className="text-base"
-                maxLength={10}
-              />
+        {paymentStep === 'scanQrCode' && (
+          <div className="space-y-4 py-6 text-center">
+            <p className="text-muted-foreground">Scan the code below with your mobile payment app.</p>
+            <div className="flex justify-center items-center bg-white p-4 rounded-md border shadow-inner">
+                <Image
+                    src={qrCodeUrl}
+                    alt="Payment QR Code"
+                    width={200}
+                    height={200}
+                    data-ai-hint="qr code"
+                />
             </div>
-            <Button onClick={handleSendOtp} className="w-full bg-primary hover:bg-primary/90">
-              Send OTP
-            </Button>
-          </div>
-        )}
-
-        {paymentStep === 'enterOtp' && (
-          <div className="space-y-6 py-6">
-            <div className="space-y-2">
-              <Label htmlFor="otp" className="font-medium">Enter OTP</Label>
-              <Input
-                id="otp"
-                type="text" 
-                inputMode="numeric" 
-                value={enteredOtp}
-                onChange={(e) => setEnteredOtp(e.target.value)}
-                placeholder="4-digit OTP"
-                className="text-base tracking-widest text-center"
-                maxLength={4}
-              />
-            </div>
-            <div className="flex flex-col sm:flex-row gap-2">
-                <Button onClick={handleVerifyOtp} className="w-full bg-green-600 hover:bg-green-700 text-white">
-                    <ShieldCheck className="mr-2 h-5 w-5" /> Verify & Pay
-                </Button>
-                <Button variant="outline" onClick={handleSendOtp} className="w-full sm:w-auto">
-                    <RefreshCw className="mr-2 h-4 w-4" /> Resend OTP
-                </Button>
+            <div className="flex items-center justify-center space-x-2 pt-2">
+                <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                <p className="text-primary font-medium">Awaiting payment confirmation...</p>
             </div>
           </div>
         )}
