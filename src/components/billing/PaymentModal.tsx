@@ -2,6 +2,9 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
 import {
   Dialog,
   DialogContent,
@@ -31,7 +34,21 @@ const paymentOptions = [
   { name: 'Cash', icon: CircleDollarSign, id: 'cash' },
 ];
 
-type PaymentStep = 'selectMethod' | 'enterMobile' | 'enterOtp';
+const CreditCardSchema = z.object({
+    cardNumber: z.string()
+      .min(16, "Card number must be 16 digits.")
+      .max(16, "Card number must be 16 digits.")
+      .regex(/^\d{16}$/, "Card number must be 16 digits."),
+    cardName: z.string().min(2, "Cardholder name is required."),
+    expiryDate: z.string().regex(/^(0[1-9]|1[0-2])\/?([0-9]{2})$/, "Invalid format. Use MM/YY."),
+    cvc: z.string()
+        .min(3, "CVC must be 3 or 4 digits.")
+        .max(4, "CVC must be 3 or 4 digits.")
+        .regex(/^\d{3,4}$/, "Invalid CVC."),
+});
+type CreditCardFormValues = z.infer<typeof CreditCardSchema>;
+
+type PaymentStep = 'selectMethod' | 'enterMobile' | 'enterOtp' | 'enterCreditCard';
 
 export function PaymentModal({ isOpen, onClose, onPaymentSelect, grandTotal, currencySymbol }: PaymentModalProps) {
   const [paymentStep, setPaymentStep] = useState<PaymentStep>('selectMethod');
@@ -41,6 +58,10 @@ export function PaymentModal({ isOpen, onClose, onPaymentSelect, grandTotal, cur
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const { toast } = useToast();
 
+  const { register, handleSubmit, formState: { errors }, reset: resetCardForm } = useForm<CreditCardFormValues>({
+    resolver: zodResolver(CreditCardSchema),
+  });
+
   useEffect(() => {
     if (isOpen) {
       // Reset state when modal opens or re-opens
@@ -49,12 +70,16 @@ export function PaymentModal({ isOpen, onClose, onPaymentSelect, grandTotal, cur
       setEnteredOtp('');
       setSimulatedOtp('');
       setErrorMessage(null);
+      resetCardForm();
     }
-  }, [isOpen]);
+  }, [isOpen, resetCardForm]);
 
   const handlePaymentOptionClick = (optionId: string) => {
     if (optionId === 'mobile_payment') {
       setPaymentStep('enterMobile');
+      setErrorMessage(null);
+    } else if (optionId === 'credit_card') {
+      setPaymentStep('enterCreditCard');
       setErrorMessage(null);
     } else {
       onPaymentSelect(optionId);
@@ -89,14 +114,20 @@ export function PaymentModal({ isOpen, onClose, onPaymentSelect, grandTotal, cur
     }
   };
 
+  const handleCreditCardSubmit = (data: CreditCardFormValues) => {
+    console.log("Credit Card Details (Simulated):", data);
+    onPaymentSelect('credit_card');
+  };
+
   const handleBack = () => {
     setErrorMessage(null);
     if (paymentStep === 'enterOtp') {
       setPaymentStep('enterMobile');
-      setEnteredOtp(''); // Clear entered OTP when going back
-    } else if (paymentStep === 'enterMobile') {
+      setEnteredOtp('');
+    } else if (paymentStep === 'enterMobile' || paymentStep === 'enterCreditCard') {
       setPaymentStep('selectMethod');
-      setMobileNumber(''); // Clear mobile number when going back
+      setMobileNumber('');
+      resetCardForm();
     }
   };
 
@@ -111,6 +142,7 @@ export function PaymentModal({ isOpen, onClose, onPaymentSelect, grandTotal, cur
             {paymentStep === 'selectMethod' && 'Complete Payment'}
             {paymentStep === 'enterMobile' && 'Mobile Payment'}
             {paymentStep === 'enterOtp' && 'Verify OTP'}
+            {paymentStep === 'enterCreditCard' && 'Enter Card Details'}
           </DialogTitle>
           <DialogDescription className="text-center text-muted-foreground">
             Total amount due: <span className="font-bold text-foreground">{currencySymbol}{grandTotal.toFixed(2)}</span>
@@ -186,6 +218,36 @@ export function PaymentModal({ isOpen, onClose, onPaymentSelect, grandTotal, cur
                 </Button>
             </div>
           </div>
+        )}
+
+        {paymentStep === 'enterCreditCard' && (
+          <form onSubmit={handleSubmit(handleCreditCardSubmit)} className="space-y-4 py-6">
+            <div className="space-y-2">
+              <Label htmlFor="cardNumber">Card Number</Label>
+              <Input id="cardNumber" {...register("cardNumber")} placeholder="0000 0000 0000 0000" maxLength={16} />
+              {errors.cardNumber && <p className="text-sm text-destructive">{errors.cardNumber.message}</p>}
+            </div>
+             <div className="space-y-2">
+              <Label htmlFor="cardName">Cardholder Name</Label>
+              <Input id="cardName" {...register("cardName")} placeholder="John Doe" />
+              {errors.cardName && <p className="text-sm text-destructive">{errors.cardName.message}</p>}
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="expiryDate">Expiry Date</Label>
+                <Input id="expiryDate" {...register("expiryDate")} placeholder="MM/YY" />
+                {errors.expiryDate && <p className="text-sm text-destructive">{errors.expiryDate.message}</p>}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="cvc">CVC</Label>
+                <Input id="cvc" {...register("cvc")} placeholder="123" maxLength={4} />
+                {errors.cvc && <p className="text-sm text-destructive">{errors.cvc.message}</p>}
+              </div>
+            </div>
+             <Button type="submit" className="w-full bg-green-600 hover:bg-green-700 text-white">
+                <ShieldCheck className="mr-2 h-5 w-5" /> Pay {currencySymbol}{grandTotal.toFixed(2)}
+            </Button>
+          </form>
         )}
 
         <DialogFooter className="sm:justify-center">
