@@ -17,7 +17,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { CreditCard, QrCode, CircleDollarSign, X, ArrowLeft, ShieldCheck, MessageSquareWarning, Loader2 } from 'lucide-react';
+import { CreditCard, Smartphone, CircleDollarSign, X, ArrowLeft, ShieldCheck, MessageSquareWarning, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
@@ -31,7 +31,7 @@ interface PaymentModalProps {
 
 const paymentOptions = [
   { name: 'Credit Card', icon: CreditCard, id: 'credit_card' },
-  { name: 'Mobile Payment', icon: QrCode, id: 'mobile_payment' },
+  { name: 'Mobile Payment', icon: Smartphone, id: 'mobile_payment' },
   { name: 'Cash', icon: CircleDollarSign, id: 'cash' },
 ];
 
@@ -49,12 +49,11 @@ const CreditCardSchema = z.object({
 });
 type CreditCardFormValues = z.infer<typeof CreditCardSchema>;
 
-type PaymentStep = 'selectMethod' | 'scanQrCode' | 'enterCreditCard';
+type PaymentStep = 'selectMethod' | 'enterCreditCard';
 
 export function PaymentModal({ isOpen, onClose, onPaymentSelect, grandTotal, currencySymbol }: PaymentModalProps) {
   const [paymentStep, setPaymentStep] = useState<PaymentStep>('selectMethod');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [isAwaitingScan, setIsAwaitingScan] = useState(false);
   const { toast } = useToast();
 
   const { register, handleSubmit, formState: { errors }, reset: resetCardForm } = useForm<CreditCardFormValues>({
@@ -66,38 +65,16 @@ export function PaymentModal({ isOpen, onClose, onPaymentSelect, grandTotal, cur
       // Reset state when modal opens or re-opens
       setPaymentStep('selectMethod');
       setErrorMessage(null);
-      setIsAwaitingScan(false);
       resetCardForm();
     }
   }, [isOpen, resetCardForm]);
-  
-  // Simulate payment confirmation after QR code is shown
-  useEffect(() => {
-    let timer: NodeJS.Timeout;
-    if (paymentStep === 'scanQrCode' && !isAwaitingScan) {
-        setIsAwaitingScan(true);
-        timer = setTimeout(() => {
-            onPaymentSelect('mobile_payment');
-            toast({
-                title: "Payment Confirmed",
-                description: "Payment received via QR code scan.",
-                className: "bg-green-500 text-white"
-            });
-        }, 4000); // Simulate a 4-second delay for scanning
-    }
-    return () => {
-        clearTimeout(timer);
-    };
-  }, [paymentStep, isAwaitingScan, onPaymentSelect, toast]);
 
   const handlePaymentOptionClick = (optionId: string) => {
-    if (optionId === 'mobile_payment') {
-      setPaymentStep('scanQrCode');
-      setErrorMessage(null);
-    } else if (optionId === 'credit_card') {
+    if (optionId === 'credit_card') {
       setPaymentStep('enterCreditCard');
       setErrorMessage(null);
     } else {
+      // For 'mobile_payment' and 'cash', process immediately
       onPaymentSelect(optionId);
     }
   };
@@ -110,13 +87,8 @@ export function PaymentModal({ isOpen, onClose, onPaymentSelect, grandTotal, cur
   const handleBack = () => {
     setErrorMessage(null);
     setPaymentStep('selectMethod');
-    setIsAwaitingScan(false);
     resetCardForm();
   };
-  
-  const qrData = encodeURIComponent(`payment_total:${grandTotal.toFixed(2)}&currency:${currencySymbol}`);
-  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${qrData}`;
-
 
   if (!isOpen) return null;
 
@@ -126,7 +98,6 @@ export function PaymentModal({ isOpen, onClose, onPaymentSelect, grandTotal, cur
         <DialogHeader>
           <DialogTitle className="text-2xl font-headline text-center text-primary">
             {paymentStep === 'selectMethod' && 'Complete Payment'}
-            {paymentStep === 'scanQrCode' && 'Scan QR Code'}
             {paymentStep === 'enterCreditCard' && 'Enter Card Details'}
           </DialogTitle>
           <DialogDescription className="text-center text-muted-foreground">
@@ -156,25 +127,6 @@ export function PaymentModal({ isOpen, onClose, onPaymentSelect, grandTotal, cur
                 <span className="text-sm font-medium">{option.name}</span>
               </Button>
             ))}
-          </div>
-        )}
-
-        {paymentStep === 'scanQrCode' && (
-          <div className="space-y-4 py-6 text-center">
-            <p className="text-muted-foreground">Scan the code below with your mobile payment app.</p>
-            <div className="flex justify-center items-center bg-white p-4 rounded-md border shadow-inner">
-                <Image
-                    src={qrCodeUrl}
-                    alt="Payment QR Code"
-                    width={200}
-                    height={200}
-                    data-ai-hint="qr code"
-                />
-            </div>
-            <div className="flex items-center justify-center space-x-2 pt-2">
-                <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                <p className="text-primary font-medium">Awaiting payment confirmation...</p>
-            </div>
           </div>
         )}
 
