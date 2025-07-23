@@ -610,32 +610,34 @@ export default function SwiftCheckoutPage() {
           />
         </section>
 
-        <section className="lg:col-span-1 flex flex-col gap-6 md:gap-8">
-          <TotalsDisplay
-            subtotal={subtotal}
-            discountAmount={discountAmount}
-            taxAmount={taxAmount}
-            grandTotal={grandTotal}
-            currencySymbol={selectedCurrencySymbol}
-          />
-          {!isBillFinalized && (
-            <DiscountTaxForm
-              onApplyDiscount={handleApplyDiscount}
-              onApplyTax={handleApplyTax}
-              currentDiscount={discountPercentage}
-              currentTax={taxPercentage}
-              disabled={isBillFinalized || isUpdatingPrices}
-            />
-          )}
-          <CrossSellSuggestions
-            suggestions={crossSellSuggestions}
-            isLoading={isSuggestionsLoading}
-            error={suggestionsError}
-            onAddSuggestion={handleAddSuggestionToCart}
-            cartItems={cartItems}
-            disabled={isUpdatingPrices}
-          />
-          <BillHistory history={billHistory} onClearHistory={handleClearHistory} />
+        <section className="lg:col-span-1">
+            <div className="flex flex-col gap-6 md:gap-8 relative">
+                <TotalsDisplay
+                    subtotal={subtotal}
+                    discountAmount={discountAmount}
+                    taxAmount={taxAmount}
+                    grandTotal={grandTotal}
+                    currencySymbol={selectedCurrencySymbol}
+                />
+                {!isBillFinalized && (
+                    <DiscountTaxForm
+                    onApplyDiscount={handleApplyDiscount}
+                    onApplyTax={handleApplyTax}
+                    currentDiscount={discountPercentage}
+                    currentTax={taxPercentage}
+                    disabled={isBillFinalized || isUpdatingPrices}
+                    />
+                )}
+                <CrossSellSuggestions
+                    suggestions={crossSellSuggestions}
+                    isLoading={isSuggestionsLoading}
+                    error={suggestionsError}
+                    onAddSuggestion={handleAddSuggestionToCart}
+                    cartItems={cartItems}
+                    disabled={isUpdatingPrices}
+                />
+                <BillHistory history={billHistory} onClearHistory={handleClearHistory} />
+            </div>
         </section>
       </main>
 
