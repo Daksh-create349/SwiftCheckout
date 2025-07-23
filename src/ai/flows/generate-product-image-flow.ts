@@ -53,7 +53,7 @@ const generateProductImageFlow = ai.defineFlow(
     });
 
     if (!media || !media.url) {
-      throw new Error('Image generation failed or returned no media URL.');
+      throw new Error(`Image generation failed for '${input.productName}'. The service may be unavailable or the prompt was blocked by safety filters.`);
     }
 
     return { productImageDataUri: media.url };
