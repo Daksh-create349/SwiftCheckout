@@ -611,7 +611,7 @@ export default function SwiftCheckoutPage() {
         </section>
 
         <section className="lg:col-span-1">
-            <div className="flex flex-col gap-6 md:gap-8 relative">
+            <div className="relative flex flex-col gap-6 md:gap-8">
                 <TotalsDisplay
                     subtotal={subtotal}
                     discountAmount={discountAmount}

@@ -2,7 +2,6 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import Image from 'next/image';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -17,8 +16,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { CreditCard, Smartphone, CircleDollarSign, X, ArrowLeft, ShieldCheck, MessageSquareWarning, Loader2 } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+import { CreditCard, Smartphone, CircleDollarSign, X, ArrowLeft, ShieldCheck, MessageSquareWarning, QrCode, Loader2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 interface PaymentModalProps {
@@ -54,7 +52,6 @@ type PaymentStep = 'selectMethod' | 'enterCreditCard';
 export function PaymentModal({ isOpen, onClose, onPaymentSelect, grandTotal, currencySymbol }: PaymentModalProps) {
   const [paymentStep, setPaymentStep] = useState<PaymentStep>('selectMethod');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const { toast } = useToast();
 
   const { register, handleSubmit, formState: { errors }, reset: resetCardForm } = useForm<CreditCardFormValues>({
     resolver: zodResolver(CreditCardSchema),
@@ -70,9 +67,9 @@ export function PaymentModal({ isOpen, onClose, onPaymentSelect, grandTotal, cur
   }, [isOpen, resetCardForm]);
 
   const handlePaymentOptionClick = (optionId: string) => {
+    setErrorMessage(null);
     if (optionId === 'credit_card') {
       setPaymentStep('enterCreditCard');
-      setErrorMessage(null);
     } else {
       // For 'mobile_payment' and 'cash', process immediately
       onPaymentSelect(optionId);
