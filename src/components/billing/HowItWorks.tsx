@@ -85,7 +85,6 @@ export function HowItWorks() {
                  {isLoading && (
                     <div className="flex flex-col items-center text-primary">
                         <Loader2 className="h-10 w-10 animate-spin" />
-                        <p className="mt-2 text-sm text-muted-foreground">AI is generating an image for you...</p>
                     </div>
                  )}
                  {error && !isLoading && (
@@ -108,10 +107,6 @@ export function HowItWorks() {
                             key={imageUrl} 
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent md:bg-gradient-to-r"></div>
-                         <div className="absolute bottom-2 right-2 flex items-center gap-1 bg-black/50 text-white text-xs p-1.5 rounded-md">
-                            <Wand2 className="h-3 w-3"/>
-                            <span>AI Generated</span>
-                        </div>
                     </>
                  )}
             </div>
