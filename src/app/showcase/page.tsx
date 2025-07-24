@@ -5,7 +5,7 @@ import React, { useState } from 'react';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Camera, Wand2, ArrowLeft, Video } from 'lucide-react';
+import { Loader2, Camera, Wand2, ArrowLeft } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { generateBillImage, type GenerateBillImageInput } from '@/ai/flows/generate-bill-image-flow';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -134,12 +134,6 @@ export default function ShowcasePage() {
             </h1>
         </div>
         <div className="flex items-center gap-2">
-          <Button asChild variant="default">
-              <Link href="/showcase/video">
-                  <Video className="mr-2 h-4 w-4" />
-                  Generate Video
-              </Link>
-          </Button>
           <Button asChild variant="outline">
               <Link href="/">
                   <ArrowLeft className="mr-2 h-4 w-4" />
@@ -214,4 +208,3 @@ export default function ShowcasePage() {
     </div>
   );
 }
-
