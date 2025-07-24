@@ -51,11 +51,9 @@ const generateShowcaseVideoFlow = ai.defineFlow(
       model: googleAI.model('veo-2.0-generate-001'),
       prompt: prompt,
       config: {
-        generationConfig: {
-            durationSeconds: 8,
-            aspectRatio: '16:9',
-            personGeneration: 'allow_adult',
-        },
+        durationSeconds: 8,
+        aspectRatio: '16:9',
+        personGeneration: 'allow_adult',
       },
     });
 
