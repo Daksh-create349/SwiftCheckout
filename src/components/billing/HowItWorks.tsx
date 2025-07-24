@@ -4,7 +4,9 @@
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Camera, Search, Lightbulb, Bot } from 'lucide-react';
+import { Camera, Search, Lightbulb, Bot, AlertTriangle, Loader2, Wand2 } from 'lucide-react';
+import { generateShowcaseImage } from '@/ai/flows/generate-showcase-image-flow';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const features = [
     {
@@ -30,13 +32,26 @@ const features = [
 ];
 
 export function HowItWorks() {
-  const [imageUrl, setImageUrl] = useState("https://placehold.co/600x800.png");
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Adding a random query string to the URL busts the cache and fetches a new placeholder.
-    // While placehold.co serves the same grey box, this pattern is correct for a real random image service.
-    const randomImageUrl = `https://placehold.co/600x800.png?t=${new Date().getTime()}`;
-    setImageUrl(randomImageUrl);
+    const fetchImage = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const result = await generateShowcaseImage();
+        setImageUrl(result.showcaseImageDataUri);
+      } catch (err) {
+        console.error("Error generating showcase image:", err);
+        setError((err as Error).message || "Failed to load AI-generated image. Please try refreshing.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchImage();
   }, []);
 
   return (
@@ -66,16 +81,39 @@ export function HowItWorks() {
                     </ul>
                 </CardContent>
             </div>
-            <div className="relative min-h-[300px] md:min-h-full">
-                 <Image
-                    src={imageUrl}
-                    alt="A cashier using a modern, AI-powered point-of-sale system"
-                    fill
-                    className="object-cover"
-                    data-ai-hint="touchscreen checkout"
-                    key={imageUrl}
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent md:bg-gradient-to-r"></div>
+            <div className="relative min-h-[300px] md:min-h-full bg-muted/30 flex items-center justify-center">
+                 {isLoading && (
+                    <div className="flex flex-col items-center text-primary">
+                        <Loader2 className="h-10 w-10 animate-spin" />
+                        <p className="mt-2 text-sm text-muted-foreground">AI is generating an image for you...</p>
+                    </div>
+                 )}
+                 {error && !isLoading && (
+                    <div className="p-4">
+                        <Alert variant="destructive">
+                            <AlertTriangle className="h-4 w-4" />
+                            <AlertTitle>Image Generation Failed</AlertTitle>
+                            <AlertDescription>{error}</AlertDescription>
+                        </Alert>
+                    </div>
+                 )}
+                 {imageUrl && !isLoading && !error && (
+                    <>
+                        <Image
+                            src={imageUrl}
+                            alt="An AI-generated image of a modern, futuristic point-of-sale system in a stylish retail environment."
+                            fill
+                            className="object-cover animate-fade-in"
+                            data-ai-hint="touchscreen checkout"
+                            key={imageUrl} 
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent md:bg-gradient-to-r"></div>
+                         <div className="absolute bottom-2 right-2 flex items-center gap-1 bg-black/50 text-white text-xs p-1.5 rounded-md">
+                            <Wand2 className="h-3 w-3"/>
+                            <span>AI Generated</span>
+                        </div>
+                    </>
+                 )}
             </div>
         </div>
       </Card>
