@@ -59,11 +59,11 @@ export function HowItWorks() {
             </div>
             <div className="relative min-h-[300px] md:min-h-full">
                  <Image
-                    src="https://placehold.co/600x400.png"
+                    src="https://placehold.co/800x600.png"
                     alt="A cashier using a modern, AI-powered point-of-sale system"
                     fill
                     className="object-cover"
-                    data-ai-hint="retail cashier modern"
+                    data-ai-hint="modern checkout"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent md:bg-gradient-to-r"></div>
             </div>
