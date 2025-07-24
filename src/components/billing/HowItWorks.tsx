@@ -59,7 +59,7 @@ export function HowItWorks() {
             </div>
             <div className="relative min-h-[300px] md:min-h-full">
                  <Image
-                    src="https://placehold.co/800x600.png"
+                    src="https://placehold.co/800x800.png"
                     alt="A cashier using a modern, AI-powered point-of-sale system"
                     fill
                     className="object-cover"
