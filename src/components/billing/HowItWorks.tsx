@@ -4,7 +4,7 @@
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Camera, Search, Lightbulb, Bot, AlertTriangle, Loader2, Wand2 } from 'lucide-react';
+import { Camera, Search, Lightbulb, Bot, AlertTriangle, Loader2 } from 'lucide-react';
 import { generateShowcaseImage } from '@/ai/flows/generate-showcase-image-flow';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
