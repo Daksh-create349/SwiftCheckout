@@ -25,6 +25,7 @@ import { getCrossSellSuggestions, type CrossSellSuggestionInput } from '@/ai/flo
 import { generateBillImage, type GenerateBillImageInput } from '@/ai/flows/generate-bill-image-flow';
 import { getProductPriceByName } from '@/ai/flows/get-product-price-by-name-flow';
 import { Zap, AlertTriangle, CheckCircle, Printer, Loader2, CreditCard, Download, Settings, Move3d } from 'lucide-react';
+import { ThemeToggle } from '@/components/theme-toggle';
 
 const SCROLL_THROTTLE_MS = 100;
 const TILT_THRESHOLD_VERTICAL = 15; // Degrees
@@ -516,6 +517,7 @@ export default function SwiftCheckoutPage() {
                         ))}
                     </SelectContent>
                 </Select>
+                 <ThemeToggle />
                 <Button
                     variant="default"
                     className="bg-accent hover:bg-accent/80 text-accent-foreground"
