@@ -1,7 +1,7 @@
 
 "use client";
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Camera, Search, Lightbulb, Bot } from 'lucide-react';
@@ -30,6 +30,15 @@ const features = [
 ];
 
 export function HowItWorks() {
+  const [imageUrl, setImageUrl] = useState("https://placehold.co/600x800.png");
+
+  useEffect(() => {
+    // Adding a random query string to the URL busts the cache and fetches a new placeholder.
+    // While placehold.co serves the same grey box, this pattern is correct for a real random image service.
+    const randomImageUrl = `https://placehold.co/600x800.png?t=${new Date().getTime()}`;
+    setImageUrl(randomImageUrl);
+  }, []);
+
   return (
     <section className="mb-6 md:mb-8">
       <Card className="shadow-lg overflow-hidden">
@@ -59,11 +68,12 @@ export function HowItWorks() {
             </div>
             <div className="relative min-h-[300px] md:min-h-full">
                  <Image
-                    src="https://placehold.co/600x800.png"
+                    src={imageUrl}
                     alt="A cashier using a modern, AI-powered point-of-sale system"
                     fill
                     className="object-cover"
                     data-ai-hint="touchscreen checkout"
+                    key={imageUrl}
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent md:bg-gradient-to-r"></div>
             </div>
