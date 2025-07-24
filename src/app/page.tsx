@@ -10,6 +10,7 @@ import { DiscountTaxForm } from '@/components/billing/DiscountTaxForm';
 import { CrossSellSuggestions } from '@/components/billing/CrossSellSuggestions';
 import { PaymentModal } from '@/components/billing/PaymentModal';
 import { BillHistory } from '@/components/billing/BillHistory';
+import { HowItWorks } from '@/components/billing/HowItWorks';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -540,8 +541,10 @@ export default function SwiftCheckoutPage() {
             </Alert>
         )}
       </header>
+      
+      <HowItWorks />
 
-      <main className="flex-grow grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
+      <main className="flex-grow grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8 mt-8">
         <section className="lg:col-span-2 flex flex-col gap-6 md:gap-8">
           {!isBillFinalized && (
             <ProductInputForm
@@ -610,7 +613,7 @@ export default function SwiftCheckoutPage() {
           />
         </section>
 
-        <section className="lg:col-span-1">
+        <aside className="lg:col-span-1">
             <div className="relative flex flex-col gap-6 md:gap-8">
                 <TotalsDisplay
                     subtotal={subtotal}
@@ -638,7 +641,7 @@ export default function SwiftCheckoutPage() {
                 />
                 <BillHistory history={billHistory} onClearHistory={handleClearHistory} />
             </div>
-        </section>
+        </aside>
       </main>
 
       <PaymentModal

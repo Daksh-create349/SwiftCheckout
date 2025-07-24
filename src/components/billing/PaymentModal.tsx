@@ -16,7 +16,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { CreditCard, Smartphone, CircleDollarSign, X, ArrowLeft, ShieldCheck, MessageSquareWarning, QrCode, Loader2 } from 'lucide-react';
+import { CreditCard, Smartphone, CircleDollarSign, X, ArrowLeft, ShieldCheck, MessageSquareWarning } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 interface PaymentModalProps {
@@ -71,7 +71,6 @@ export function PaymentModal({ isOpen, onClose, onPaymentSelect, grandTotal, cur
     if (optionId === 'credit_card') {
       setPaymentStep('enterCreditCard');
     } else {
-      // For 'mobile_payment' and 'cash', process immediately
       onPaymentSelect(optionId);
     }
   };
