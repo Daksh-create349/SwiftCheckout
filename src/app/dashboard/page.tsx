@@ -22,6 +22,7 @@ export default function DashboardPage() {
     const [analysisResult, setAnalysisResult] = useState<AnalyzeSalesOutput | null>(null);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
+    const [currencySymbol, setCurrencySymbol] = useState<string>('$');
 
     useEffect(() => {
         const fetchAndAnalyzeData = async () => {
@@ -41,9 +42,10 @@ export default function DashboardPage() {
                     return;
                 }
 
-                // Determine a primary currency for analysis (e.g., the most frequent one)
-                const currencySymbol = billHistory[0]?.currencySymbol || '$';
-                const currencyCode = getCurrencyCode(currencySymbol);
+                // Determine currency from the first bill, default to '$'
+                const primaryCurrencySymbol = billHistory[0]?.currencySymbol || '$';
+                setCurrencySymbol(primaryCurrencySymbol);
+                const currencyCode = getCurrencyCode(primaryCurrencySymbol);
 
                 const input: AnalyzeSalesInput = { billHistory, currencyCode };
                 const result = await analyzeSales(input);
@@ -61,8 +63,6 @@ export default function DashboardPage() {
 
         fetchAndAnalyzeData();
     }, [toast]);
-
-    const currencySymbol = getCurrencyCode(analysisResult?.topSellingProducts[0]?.name);
 
 
     return (
@@ -99,16 +99,16 @@ export default function DashboardPage() {
 
             {!isLoading && !error && analysisResult && (
                 <div className="space-y-6 md:space-y-8 animate-fade-in">
-                    <SalesSummary metrics={analysisResult.metrics} currencySymbol="$" />
+                    <SalesSummary metrics={analysisResult.metrics} currencySymbol={currencySymbol} />
                     <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 md:gap-8">
                         <div className="lg:col-span-3">
-                            <RevenueChart data={analysisResult.dailySales} currencySymbol="$" />
+                            <RevenueChart data={analysisResult.dailySales} currencySymbol={currencySymbol} />
                         </div>
                         <div className="lg:col-span-2">
                              <AiSummary summary={analysisResult.aiSummary} />
                         </div>
                     </div>
-                    <TopProductsChart data={analysisResult.topSellingProducts} currencySymbol="$" />
+                    <TopProductsChart data={analysisResult.topSellingProducts} currencySymbol={currencySymbol} />
                 </div>
             )}
 
