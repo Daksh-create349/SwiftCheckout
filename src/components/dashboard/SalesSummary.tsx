@@ -4,7 +4,7 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Sigma, Receipt, CircleDollarSign } from 'lucide-react';
-import type { AnalyzeSalesOutput } from '@/ai/flows/analyze-sales-flow';
+import type { AnalyzeSalesOutput } from '@/types/billing';
 
 interface SalesSummaryProps {
   metrics: AnalyzeSalesOutput['metrics'];

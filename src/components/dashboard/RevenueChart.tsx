@@ -5,7 +5,7 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { TrendingUp } from 'lucide-react';
-import type { DailySales } from '@/ai/flows/analyze-sales-flow';
+import type { DailySales } from '@/types/billing';
 import { format, parseISO } from 'date-fns';
 
 interface RevenueChartProps {

@@ -7,9 +7,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { ArrowLeft, LineChart, BarChart, Bot, Sigma, Receipt, AlertTriangle, Loader2 } from 'lucide-react';
-import type { BillRecord } from '@/types/billing';
+import type { BillRecord, AnalyzeSalesInput, AnalyzeSalesOutput } from '@/types/billing';
 import { getCurrencyCode } from '@/types/billing';
-import { analyzeSales, type AnalyzeSalesInput, type AnalyzeSalesOutput } from '@/ai/flows/analyze-sales-flow';
+import { analyzeSales } from '@/ai/flows/analyze-sales-flow';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import AiSummary from '@/components/dashboard/AiSummary';
 import SalesSummary from '@/components/dashboard/SalesSummary';
@@ -118,4 +118,3 @@ export default function DashboardPage() {
         </div>
     );
 }
-

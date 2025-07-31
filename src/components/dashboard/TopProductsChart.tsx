@@ -5,7 +5,7 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Package } from 'lucide-react';
-import type { AnalyzeSalesOutput } from '@/ai/flows/analyze-sales-flow';
+import type { AnalyzeSalesOutput } from '@/types/billing';
 
 interface TopProductsChartProps {
   data: AnalyzeSalesOutput['topSellingProducts'];
