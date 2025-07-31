@@ -36,7 +36,7 @@ const GenerateBillImageOutputSchema = z.object({
   billImageDataUri: z
     .string()
     .describe(
-      "The generated bill image as a data URI. Expected format: 'data:image/png;base64,<encoded_data>'."
+      "The generated bill image as a data URI. Expected format: 'data:image/png;base64,<encoded_data>'"
     ),
 });
 export type GenerateBillImageOutput = z.infer<typeof GenerateBillImageOutputSchema>;
@@ -92,19 +92,29 @@ ${formattedItems}
 4.  **Appearance:** The receipt must be vertically oriented. The background should be plain white or very light off-white. All text should be dark (black or very dark grey).
 5.  **Simplicity & Accuracy:** Do NOT add any artistic embellishments, decorative elements, logos (unless the store name itself implies one, render it simply as text), or any extra text/graphics not explicitly requested in the 'Receipt Details'. The image must be purely functional and accurately represent a real-world printed receipt. Avoid any blurriness or distortion.
 `;
+    try {
+      const {media} = await ai.generate({
+        model: 'googleai/gemini-2.0-flash-preview-image-generation',
+        prompt: promptText,
+        config: {
+          responseModalities: ['IMAGE', 'TEXT'],
+           safetySettings: [
+              { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
+              { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' },
+              { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' },
+              { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
+          ],
+        },
+      });
 
-    const {media} = await ai.generate({
-      model: 'googleai/gemini-2.0-flash-preview-image-generation',
-      prompt: promptText,
-      config: {
-        responseModalities: ['IMAGE', 'TEXT'],
-      },
-    });
+      if (!media || !media.url) {
+        throw new Error('Image generation failed to return a valid media URL.');
+      }
 
-    if (!media || !media.url) {
-      throw new Error('Image generation failed or returned no media URL.');
+      return { billImageDataUri: media.url };
+    } catch (error) {
+       console.error("Error in generateBillImageFlow:", error);
+       throw new Error('Image generation failed. The service may be unavailable, the prompt was blocked by safety filters, or environment variables may be missing.');
     }
-
-    return { billImageDataUri: media.url };
   }
 );
