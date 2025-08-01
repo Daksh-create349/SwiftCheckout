@@ -27,6 +27,7 @@ import { generateBillImage, type GenerateBillImageInput } from '@/ai/flows/gener
 import { getProductPriceByName } from '@/ai/flows/get-product-price-by-name-flow';
 import { Zap, AlertTriangle, CheckCircle, Printer, Loader2, CreditCard, Download, Settings, Move3d, LineChart } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { Separator } from '@/components/ui/separator';
 
 const SCROLL_THROTTLE_MS = 100;
 const TILT_THRESHOLD_VERTICAL = 15; // Degrees
@@ -661,9 +662,15 @@ export default function SwiftCheckoutPage() {
         currencySymbol={selectedCurrencySymbol}
       />
 
-      <footer className="mt-8 text-center text-sm text-muted-foreground">
+      <footer className="mt-12 text-center text-sm text-muted-foreground">
         <p>&copy; {new Date().getFullYear()} SwiftCheckout. Efficiency at your fingertips.</p>
+        <Separator className="my-2 max-w-xs mx-auto" />
+        <p className="text-xs text-muted-foreground/80">
+            Made By Daksh Srivastava and Neel Singh
+        </p>
       </footer>
     </div>
   );
 }
+
+    
