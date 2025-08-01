@@ -647,7 +647,7 @@ export default function SwiftCheckoutPage() {
             onRemoveItem={handleRemoveItem}
             onUpdateQuantity={handleUpdateQuantity}
             currencySymbol={selectedCurrencySymbol}
-            disabled={isUpdatingPrices}
+            disabled={isBillFinalized || isUpdatingPrices}
           />
         </section>
 
@@ -700,3 +700,5 @@ export default function SwiftCheckoutPage() {
     </div>
   );
 }
+
+    
