@@ -15,6 +15,17 @@ import { HowItWorks } from '@/components/billing/HowItWorks';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { useToast } from '@/hooks/use-toast';
 import { ToastAction } from "@/components/ui/toast";
 import type { CartItem, Currency, BillRecord } from '@/types/billing';
@@ -526,20 +537,37 @@ export default function SwiftCheckoutPage() {
                     </SelectContent>
                 </Select>
                  <ThemeToggle />
-                <Button
-                    variant="default"
-                    className="bg-accent hover:bg-accent/80 text-accent-foreground"
-                    onClick={handleFinalizeBill}
-                    disabled={cartItems.length === 0 || isBillFinalized || isGeneratingBillImage || isUpdatingPrices}
-                    aria-label="Finalize Bill"
-                >
-                    {isUpdatingPrices ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : isGeneratingBillImage && !isBillFinalized ? (
-                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                    ) : (
-                        <CheckCircle className="mr-2 h-5 w-5" />
-                    )}
-                    {isUpdatingPrices ? "Updating..." : isGeneratingBillImage && !isBillFinalized ? "Generating..." : "Finalize Bill"}
-                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                     <Button
+                        variant="default"
+                        className="bg-accent hover:bg-accent/80 text-accent-foreground"
+                        disabled={cartItems.length === 0 || isBillFinalized || isGeneratingBillImage || isUpdatingPrices}
+                        aria-label="Finalize Bill"
+                    >
+                        {isUpdatingPrices ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : isGeneratingBillImage && !isBillFinalized ? (
+                            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                        ) : (
+                            <CheckCircle className="mr-2 h-5 w-5" />
+                        )}
+                        {isUpdatingPrices ? "Updating..." : isGeneratingBillImage && !isBillFinalized ? "Generating..." : "Finalize Bill"}
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Are you sure you want to finalize this bill?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This action will lock the current bill and generate the final receipt image. You won't be able to add or remove items after this.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleFinalizeBill}>
+                        Confirm & Finalize
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
             </div>
           </div>
         </Card>
