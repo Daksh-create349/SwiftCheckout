@@ -16,7 +16,7 @@ interface TotalsDisplayProps {
 
 export function TotalsDisplay({ subtotal, discountAmount, taxAmount, grandTotal, currencySymbol }: TotalsDisplayProps) {
   return (
-    <Card className="shadow-lg sticky top-4">
+    <Card className="shadow-lg">
       <CardHeader>
         <CardTitle className="flex items-center text-xl font-headline">
           <ListChecks className="mr-2 h-6 w-6 text-primary" /> Bill Summary
