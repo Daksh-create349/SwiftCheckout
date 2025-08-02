@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
@@ -694,7 +693,7 @@ export default function SwiftCheckoutPage() {
         <p>&copy; {new Date().getFullYear()} SwiftCheckout. Efficiency at your fingertips.</p>
         <Separator className="my-2 max-w-xs mx-auto" />
         <p className="text-xs text-muted-foreground/80">
-            Made By Daksh Srivastava and Neel Singh
+            Made By Daksh Srivastava
         </p>
       </footer>
     </div>
