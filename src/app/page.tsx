@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
@@ -35,7 +36,7 @@ import { Label } from '@/components/ui/label';
 import { getCrossSellSuggestions, type CrossSellSuggestionInput } from '@/ai/flows/cross-sell-suggestion';
 import { generateBillImage, type GenerateBillImageInput } from '@/ai/flows/generate-bill-image-flow';
 import { getProductPriceByName } from '@/ai/flows/get-product-price-by-name-flow';
-import { Zap, AlertTriangle, CheckCircle, Printer, Loader2, CreditCard, Download, Settings, Move3d, LineChart } from 'lucide-react';
+import { Zap, AlertTriangle, CheckCircle, Printer, Loader2, CreditCard, Download, Settings, Move3d, LineChart, Wand2 } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { Separator } from '@/components/ui/separator';
 
@@ -507,6 +508,12 @@ export default function SwiftCheckoutPage() {
                     <LineChart className="mr-2 h-4 w-4" />
                     Dashboard
                   </Link>
+                </Button>
+                 <Button asChild variant="outline">
+                    <Link href="/showcase">
+                        <Wand2 className="mr-2 h-4 w-4" />
+                        Showcase
+                    </Link>
                 </Button>
                 <div className="flex items-center space-x-2">
                     <Move3d className={`h-5 w-5 ${isSensorScrollingEnabled && !sensorError ? 'text-primary' : 'text-muted-foreground'}`} />
