@@ -385,9 +385,14 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
                     const result = await interpretVoiceCommand(input);
 
                     if (result.itemsToAdd.length > 0) {
+                        const itemsSummary = result.itemsToAdd
+                          .map(item => `${item.quantity}x ${item.name}`)
+                          .join(', ');
+
                         toast({
-                            title: "Voice Command Processed",
-                            description: `AI heard: "${result.transcribedText}". Adding items.`,
+                            title: "Voice Command: Items Added",
+                            description: `Added: ${itemsSummary}`,
+                            duration: 7000,
                         });
                         result.itemsToAdd.forEach(item => {
                             onAddItem(item.name, item.price, item.quantity, item.originalPrice);
