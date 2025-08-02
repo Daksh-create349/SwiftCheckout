@@ -12,6 +12,7 @@ import { CrossSellSuggestions } from '@/components/billing/CrossSellSuggestions'
 import { PaymentModal } from '@/components/billing/PaymentModal';
 import { BillHistory } from '@/components/billing/BillHistory';
 import { HowItWorks } from '@/components/billing/HowItWorks';
+import { SplashScreen } from '@/components/billing/SplashScreen';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -39,6 +40,7 @@ import { getProductPriceByName } from '@/ai/flows/get-product-price-by-name-flow
 import { Zap, AlertTriangle, CheckCircle, Printer, Loader2, CreditCard, Download, Settings, Move3d, LineChart, Wand2 } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { Separator } from '@/components/ui/separator';
+import { cn } from '@/lib/utils';
 
 const SCROLL_THROTTLE_MS = 100;
 const TILT_THRESHOLD_VERTICAL = 15; // Degrees
@@ -60,6 +62,7 @@ export default function SwiftCheckoutPage() {
   const [sensorError, setSensorError] = useState<string | null>(null);
   const [isUpdatingPrices, setIsUpdatingPrices] = useState<boolean>(false);
   const [billHistory, setBillHistory] = useState<BillRecord[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
 
 
   const { toast } = useToast();
@@ -494,215 +497,221 @@ export default function SwiftCheckoutPage() {
 
 
   return (
-    <div className="min-h-screen flex flex-col p-4 md:p-6 lg:p-8 bg-background font-body">
-      <header className="mb-6 md:mb-8">
-        <Card className="shadow-md">
-          <div className="p-4 flex items-center justify-between flex-wrap gap-2">
-            <div className="flex items-center">
-              <Zap className="h-10 w-10 text-primary animate-pulse" />
-              <h1 className="ml-3 text-3xl md:text-4xl font-bold font-headline text-primary">SwiftCheckout</h1>
-            </div>
-            <div className="flex items-center space-x-2 flex-wrap">
-                <Button asChild variant="outline">
-                  <Link href="/dashboard">
-                    <LineChart className="mr-2 h-4 w-4" />
-                    Dashboard
-                  </Link>
-                </Button>
-                 <Button asChild variant="outline">
-                    <Link href="/showcase">
-                        <Wand2 className="mr-2 h-4 w-4" />
-                        Showcase
+    <>
+      <SplashScreen onAnimationComplete={() => setIsLoading(false)} />
+      <div className={cn(
+          "min-h-screen flex flex-col p-4 md:p-6 lg:p-8 bg-background font-body transition-opacity duration-500",
+          isLoading ? "opacity-0" : "opacity-100"
+      )}>
+        <header className="mb-6 md:mb-8">
+          <Card className="shadow-md">
+            <div className="p-4 flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center">
+                <Zap className="h-10 w-10 text-primary animate-pulse" />
+                <h1 className="ml-3 text-3xl md:text-4xl font-bold font-headline text-primary">SwiftCheckout</h1>
+              </div>
+              <div className="flex items-center space-x-2 flex-wrap">
+                  <Button asChild variant="outline">
+                    <Link href="/dashboard">
+                      <LineChart className="mr-2 h-4 w-4" />
+                      Dashboard
                     </Link>
-                </Button>
-                <div className="flex items-center space-x-2">
-                    <Move3d className={`h-5 w-5 ${isSensorScrollingEnabled && !sensorError ? 'text-primary' : 'text-muted-foreground'}`} />
-                    <Label htmlFor="sensor-scrolling-switch" className="text-sm text-muted-foreground whitespace-nowrap">
-                        Sensor Scroll
-                    </Label>
-                    <Switch
-                        id="sensor-scrolling-switch"
-                        checked={isSensorScrollingEnabled}
-                        onCheckedChange={handleToggleSensorScrolling}
-                        disabled={!!sensorError && isSensorScrollingEnabled}
-                        aria-label="Toggle sensor-based scrolling"
-                    />
-                </div>
-                 {isUpdatingPrices && <Loader2 className="h-5 w-5 animate-spin text-primary" />}
-                 <Select value={selectedCurrencyCode} onValueChange={handleCurrencyChange} disabled={isUpdatingPrices}>
-                    <SelectTrigger className="w-[120px] bg-card hover:bg-muted/50 transition-colors">
-                        <Settings className="h-4 w-4 mr-1 text-muted-foreground" />
-                        <SelectValue placeholder="Currency" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {SUPPORTED_CURRENCIES.map((currency) => (
-                        <SelectItem key={currency.code} value={currency.code}>
-                            {currency.code} ({currency.symbol})
-                        </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-                 <ThemeToggle />
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                     <Button
-                        variant="default"
-                        className="bg-accent hover:bg-accent/80 text-accent-foreground"
-                        disabled={cartItems.length === 0 || isBillFinalized || isGeneratingBillImage || isUpdatingPrices}
-                        aria-label="Finalize Bill"
-                    >
-                        {isUpdatingPrices ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : isGeneratingBillImage && !isBillFinalized ? (
-                            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                        ) : (
-                            <CheckCircle className="mr-2 h-5 w-5" />
-                        )}
-                        {isUpdatingPrices ? "Updating..." : isGeneratingBillImage && !isBillFinalized ? "Generating..." : "Finalize Bill"}
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Are you sure you want to finalize this bill?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This action will lock the current bill and generate the final receipt image. You won't be able to add or remove items after this.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction onClick={handleFinalizeBill}>
-                        Confirm & Finalize
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-            </div>
-          </div>
-        </Card>
-          {sensorError && ( 
-             <Alert variant="destructive" className="mt-2">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>Sensor Scrolling Error</AlertTitle>
-                <AlertDescription>{sensorError}</AlertDescription>
-            </Alert>
-        )}
-      </header>
-      
-      <HowItWorks />
-
-      <main className="flex-grow grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8 mt-8">
-        <section className="lg:col-span-2 flex flex-col gap-6 md:gap-8">
-          {!isBillFinalized && (
-            <ProductInputForm
-                onAddItem={handleAddItem}
-                selectedCurrencyCode={selectedCurrencyCode}
-                selectedCurrencySymbol={selectedCurrencySymbol}
-                disabled={isBillFinalized || isUpdatingPrices}
-            />
-          )}
-          {isBillFinalized && cartItems.length > 0 && (
-             <Card className="p-6 text-center bg-card border-border shadow-md">
-              <CheckCircle className="h-12 w-12 text-green-600 mx-auto mb-2" />
-              <h2 className="text-xl font-semibold text-green-700 font-headline">Bill Finalized</h2>
-
-              {isGeneratingBillImage && (
-                <div className="my-4">
-                  <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
-                  <p className="text-muted-foreground mt-2">Generating bill image...</p>
-                </div>
-              )}
-
-              {!isGeneratingBillImage && billImageDataUri && (
-                <div className="mt-4">
-                  <h3 className="text-lg font-medium mb-2">Generated Bill Image:</h3>
-                  <Image
-                    ref={billImageRef}
-                    src={billImageDataUri}
-                    alt="Generated Bill"
-                    width={400}
-                    height={600}
-                    className="rounded-md border shadow-sm mx-auto"
-                    data-ai-hint="receipt bill"
-                  />
-                  <Button onClick={handlePrintBill} className="mt-4 bg-primary hover:bg-primary/90">
-                    <Printer className="mr-2 h-5 w-5" /> Print Bill
                   </Button>
-                </div>
-              )}
-              {!isGeneratingBillImage && !billImageDataUri && cartItems.length > 0 && (
-                <Alert variant="destructive" className="mt-4">
-                    <AlertTriangle className="h-4 w-4" />
-                    <AlertTitle>Image Generation Failed</AlertTitle>
-                    <AlertDescription>
-                        Could not generate bill image. You can still proceed to payment.
-                    </AlertDescription>
-                </Alert>
-              )}
-
-              {!isGeneratingBillImage && cartItems.length > 0 && (
-                <Button
-                    onClick={handleProceedToPayment}
-                    className="mt-6 bg-green-600 hover:bg-green-700 text-white"
-                    size="lg"
-                >
-                    <CreditCard className="mr-2 h-5 w-5" /> Proceed to Payment
-                </Button>
-              )}
-            </Card>
-          )}
-          <ItemList
-            items={cartItems}
-            onRemoveItem={handleRemoveItem}
-            onUpdateQuantity={handleUpdateQuantity}
-            currencySymbol={selectedCurrencySymbol}
-            disabled={isBillFinalized || isUpdatingPrices}
-          />
-        </section>
-
-        <aside className="lg:col-span-1">
-            <div className="sticky top-6 flex flex-col gap-6 md:gap-8">
-                <TotalsDisplay
-                    subtotal={subtotal}
-                    discountAmount={discountAmount}
-                    taxAmount={taxAmount}
-                    grandTotal={grandTotal}
-                    currencySymbol={selectedCurrencySymbol}
-                />
-                {!isBillFinalized && (
-                    <DiscountTaxForm
-                    onApplyDiscount={handleApplyDiscount}
-                    onApplyTax={handleApplyTax}
-                    currentDiscount={discountPercentage}
-                    currentTax={taxPercentage}
-                    disabled={isBillFinalized || isUpdatingPrices}
-                    />
-                )}
-                <CrossSellSuggestions
-                    suggestions={crossSellSuggestions}
-                    isLoading={isSuggestionsLoading}
-                    error={suggestionsError}
-                    onAddSuggestion={handleAddSuggestionToCart}
-                    cartItems={cartItems}
-                    disabled={isUpdatingPrices}
-                />
-                <BillHistory history={billHistory} onClearHistory={handleClearHistory} />
+                  <Button asChild variant="outline">
+                      <Link href="/showcase">
+                          <Wand2 className="mr-2 h-4 w-4" />
+                          Showcase
+                      </Link>
+                  </Button>
+                  <div className="flex items-center space-x-2">
+                      <Move3d className={`h-5 w-5 ${isSensorScrollingEnabled && !sensorError ? 'text-primary' : 'text-muted-foreground'}`} />
+                      <Label htmlFor="sensor-scrolling-switch" className="text-sm text-muted-foreground whitespace-nowrap">
+                          Sensor Scroll
+                      </Label>
+                      <Switch
+                          id="sensor-scrolling-switch"
+                          checked={isSensorScrollingEnabled}
+                          onCheckedChange={handleToggleSensorScrolling}
+                          disabled={!!sensorError && isSensorScrollingEnabled}
+                          aria-label="Toggle sensor-based scrolling"
+                      />
+                  </div>
+                  {isUpdatingPrices && <Loader2 className="h-5 w-5 animate-spin text-primary" />}
+                  <Select value={selectedCurrencyCode} onValueChange={handleCurrencyChange} disabled={isUpdatingPrices}>
+                      <SelectTrigger className="w-[120px] bg-card hover:bg-muted/50 transition-colors">
+                          <Settings className="h-4 w-4 mr-1 text-muted-foreground" />
+                          <SelectValue placeholder="Currency" />
+                      </SelectTrigger>
+                      <SelectContent>
+                          {SUPPORTED_CURRENCIES.map((currency) => (
+                          <SelectItem key={currency.code} value={currency.code}>
+                              {currency.code} ({currency.symbol})
+                          </SelectItem>
+                          ))}
+                      </SelectContent>
+                  </Select>
+                  <ThemeToggle />
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                          variant="default"
+                          className="bg-accent hover:bg-accent/80 text-accent-foreground"
+                          disabled={cartItems.length === 0 || isBillFinalized || isGeneratingBillImage || isUpdatingPrices}
+                          aria-label="Finalize Bill"
+                      >
+                          {isUpdatingPrices ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : isGeneratingBillImage && !isBillFinalized ? (
+                              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                          ) : (
+                              <CheckCircle className="mr-2 h-5 w-5" />
+                          )}
+                          {isUpdatingPrices ? "Updating..." : isGeneratingBillImage && !isBillFinalized ? "Generating..." : "Finalize Bill"}
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Are you sure you want to finalize this bill?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This action will lock the current bill and generate the final receipt image. You won't be able to add or remove items after this.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleFinalizeBill}>
+                          Confirm & Finalize
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+              </div>
             </div>
-        </aside>
-      </main>
+          </Card>
+            {sensorError && ( 
+              <Alert variant="destructive" className="mt-2">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>Sensor Scrolling Error</AlertTitle>
+                  <AlertDescription>{sensorError}</AlertDescription>
+              </Alert>
+          )}
+        </header>
+        
+        <HowItWorks />
 
-      <PaymentModal
-        isOpen={isPaymentModalOpen}
-        onClose={() => setIsPaymentModalOpen(false)}
-        onPaymentSelect={handlePaymentSelect}
-        grandTotal={grandTotal}
-        currencySymbol={selectedCurrencySymbol}
-      />
+        <main className="flex-grow grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8 mt-8">
+          <section className="lg:col-span-2 flex flex-col gap-6 md:gap-8">
+            {!isBillFinalized && (
+              <ProductInputForm
+                  onAddItem={handleAddItem}
+                  selectedCurrencyCode={selectedCurrencyCode}
+                  selectedCurrencySymbol={selectedCurrencySymbol}
+                  disabled={isBillFinalized || isUpdatingPrices}
+              />
+            )}
+            {isBillFinalized && cartItems.length > 0 && (
+              <Card className="p-6 text-center bg-card border-border shadow-md">
+                <CheckCircle className="h-12 w-12 text-green-600 mx-auto mb-2" />
+                <h2 className="text-xl font-semibold text-green-700 font-headline">Bill Finalized</h2>
 
-      <footer className="mt-12 text-center text-sm text-muted-foreground">
-        <p>&copy; {new Date().getFullYear()} SwiftCheckout. Efficiency at your fingertips.</p>
-        <Separator className="my-2 max-w-xs mx-auto" />
-        <p className="text-xs text-muted-foreground/80">
-            Made By Daksh Srivastava
-        </p>
-      </footer>
-    </div>
+                {isGeneratingBillImage && (
+                  <div className="my-4">
+                    <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
+                    <p className="text-muted-foreground mt-2">Generating bill image...</p>
+                  </div>
+                )}
+
+                {!isGeneratingBillImage && billImageDataUri && (
+                  <div className="mt-4">
+                    <h3 className="text-lg font-medium mb-2">Generated Bill Image:</h3>
+                    <Image
+                      ref={billImageRef}
+                      src={billImageDataUri}
+                      alt="Generated Bill"
+                      width={400}
+                      height={600}
+                      className="rounded-md border shadow-sm mx-auto"
+                      data-ai-hint="receipt bill"
+                    />
+                    <Button onClick={handlePrintBill} className="mt-4 bg-primary hover:bg-primary/90">
+                      <Printer className="mr-2 h-5 w-5" /> Print Bill
+                    </Button>
+                  </div>
+                )}
+                {!isGeneratingBillImage && !billImageDataUri && cartItems.length > 0 && (
+                  <Alert variant="destructive" className="mt-4">
+                      <AlertTriangle className="h-4 w-4" />
+                      <AlertTitle>Image Generation Failed</AlertTitle>
+                      <AlertDescription>
+                          Could not generate bill image. You can still proceed to payment.
+                      </AlertDescription>
+                  </Alert>
+                )}
+
+                {!isGeneratingBillImage && cartItems.length > 0 && (
+                  <Button
+                      onClick={handleProceedToPayment}
+                      className="mt-6 bg-green-600 hover:bg-green-700 text-white"
+                      size="lg"
+                  >
+                      <CreditCard className="mr-2 h-5 w-5" /> Proceed to Payment
+                  </Button>
+                )}
+              </Card>
+            )}
+            <ItemList
+              items={cartItems}
+              onRemoveItem={handleRemoveItem}
+              onUpdateQuantity={handleUpdateQuantity}
+              currencySymbol={selectedCurrencySymbol}
+              disabled={isBillFinalized || isUpdatingPrices}
+            />
+          </section>
+
+          <aside className="lg:col-span-1">
+              <div className="sticky top-6 flex flex-col gap-6 md:gap-8">
+                  <TotalsDisplay
+                      subtotal={subtotal}
+                      discountAmount={discountAmount}
+                      taxAmount={taxAmount}
+                      grandTotal={grandTotal}
+                      currencySymbol={selectedCurrencySymbol}
+                  />
+                  {!isBillFinalized && (
+                      <DiscountTaxForm
+                      onApplyDiscount={handleApplyDiscount}
+                      onApplyTax={handleApplyTax}
+                      currentDiscount={discountPercentage}
+                      currentTax={taxPercentage}
+                      disabled={isBillFinalized || isUpdatingPrices}
+                      />
+                  )}
+                  <CrossSellSuggestions
+                      suggestions={crossSellSuggestions}
+                      isLoading={isSuggestionsLoading}
+                      error={suggestionsError}
+                      onAddSuggestion={handleAddSuggestionToCart}
+                      cartItems={cartItems}
+                      disabled={isUpdatingPrices}
+                  />
+                  <BillHistory history={billHistory} onClearHistory={handleClearHistory} />
+              </div>
+          </aside>
+        </main>
+
+        <PaymentModal
+          isOpen={isPaymentModalOpen}
+          onClose={() => setIsPaymentModalOpen(false)}
+          onPaymentSelect={handlePaymentSelect}
+          grandTotal={grandTotal}
+          currencySymbol={selectedCurrencySymbol}
+        />
+
+        <footer className="mt-12 text-center text-sm text-muted-foreground">
+          <p>&copy; {new Date().getFullYear()} SwiftCheckout. Efficiency at your fingertips.</p>
+          <Separator className="my-2 max-w-xs mx-auto" />
+          <p className="text-xs text-muted-foreground/80">
+              Made By Daksh Srivastava
+          </p>
+        </footer>
+      </div>
+    </>
   );
 }
