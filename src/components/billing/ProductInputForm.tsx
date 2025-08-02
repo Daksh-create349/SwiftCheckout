@@ -383,24 +383,26 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
                         currencyCode: selectedCurrencyCode,
                     };
                     const result = await interpretVoiceCommand(input);
+                    const { itemToAdd, transcribedText } = result;
 
-                    if (result.itemsToAdd.length > 0) {
-                        const itemsSummary = result.itemsToAdd
-                          .map(item => `${item.quantity}x ${item.name}`)
-                          .join(', ');
-
+                    if (itemToAdd) {
                         toast({
-                            title: "Voice Command: Items Added",
-                            description: `Added: ${itemsSummary}`,
-                            duration: 7000,
+                            title: "Voice Command: Product Identified",
+                            description: `AI heard "${transcribedText}" and identified: ${itemToAdd.name}.`,
                         });
-                        result.itemsToAdd.forEach(item => {
-                            onAddItem(item.name, item.price, item.quantity, item.originalPrice);
-                        });
+                        // Populate the form instead of adding directly
+                        setIdentifiedProduct({name: itemToAdd.name, price: itemToAdd.price});
+                        setValue('manualProductName', itemToAdd.name);
+                        setValue('quantity', itemToAdd.quantity);
+                        setValue('manualPrice', itemToAdd.price);
+                        setValue('overridePrice', false);
+                        triggerProductImageGeneration(itemToAdd.name);
+                        setFocus('quantity');
+
                     } else {
                          toast({
-                            title: "No Items Added",
-                            description: `AI heard: "${result.transcribedText}", but no items were added. Try being more specific (e.g., "Add two apples").`,
+                            title: "No Product Identified",
+                            description: `AI heard: "${transcribedText}", but couldn't identify a specific product. Try again.`,
                             duration: 7000,
                         });
                     }

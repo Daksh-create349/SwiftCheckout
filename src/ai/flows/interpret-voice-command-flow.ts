@@ -3,8 +3,8 @@
 /**
  * @fileOverview Interprets a voice command to add items to a shopping cart.
  *
- * - interpretVoiceCommand - Transcribes audio, identifies products and quantities,
- *   fetches their prices, and returns a structured list of items to add to the cart.
+ * - interpretVoiceCommand - Transcribes audio, identifies the first product mentioned,
+ *   fetches its price, and returns a structured item to populate the input form.
  * - InterpretVoiceCommandInput - The input type for the interpretVoiceCommand function.
  * - InterpretVoiceCommandOutput - The return type for the interpretVoiceCommand function.
  */
@@ -26,7 +26,7 @@ const interpretationPrompt = ai.definePrompt({
     input: { schema: z.object({ text: z.string() }) },
     output: { schema: VoiceInterpretationSchema },
     prompt: `You are an expert at interpreting shopping commands.
-    From the following text, extract the products and their quantities.
+    From the following text, extract the product(s) and their quantities.
 
     Text: "{{text}}"`,
 });
@@ -52,7 +52,7 @@ const interpretVoiceCommandFlow = ai.defineFlow(
     }
     const transcribedText = text.trim();
     if (!transcribedText) {
-        return { transcribedText: "Could not understand audio.", itemsToAdd: [] };
+        return { transcribedText: "Could not understand audio.", itemToAdd: null };
     }
 
     // 2. Interpret the transcribed text to get product names and quantities
@@ -60,36 +60,34 @@ const interpretVoiceCommandFlow = ai.defineFlow(
     const { items: interpretedItems } = interpretationResult.output || { items: [] };
 
     if (!interpretedItems || interpretedItems.length === 0) {
-        return { transcribedText, itemsToAdd: [] };
+        return { transcribedText, itemToAdd: null };
     }
+    
+    // 3. Take only the FIRST interpreted item and fetch its price.
+    const firstItem = interpretedItems[0];
+    let pricedItem: IdentifiedItem | null = null;
 
-    // 3. For each interpreted item, fetch its price concurrently
-    const pricedItemsPromises = interpretedItems.map(async (item) => {
-        try {
-            const priceInput: GetProductPriceByNameInput = {
-                productName: item.productName,
-                currencyCode,
-            };
-            const priceResult = await getProductPriceByName(priceInput);
-            return {
-                name: priceResult.name,
-                price: priceResult.price,
-                quantity: item.quantity,
-                originalPrice: priceResult.price,
-            };
-        } catch (error) {
-            console.error(`Could not fetch price for '${item.productName}':`, error);
-            // Return null for items we couldn't price
-            return null;
-        }
-    });
-
-    const settledItems = await Promise.all(pricedItemsPromises);
-    const successfullyPricedItems = settledItems.filter((item): item is IdentifiedItem => item !== null);
+    try {
+        const priceInput: GetProductPriceByNameInput = {
+            productName: firstItem.productName,
+            currencyCode,
+        };
+        const priceResult = await getProductPriceByName(priceInput);
+        pricedItem = {
+            name: priceResult.name,
+            price: priceResult.price,
+            quantity: firstItem.quantity,
+            originalPrice: priceResult.price,
+        };
+    } catch (error) {
+        console.error(`Could not fetch price for '${firstItem.productName}':`, error);
+        // If pricing fails, we still return the transcribed text but no item.
+        return { transcribedText, itemToAdd: null };
+    }
     
     return {
       transcribedText,
-      itemsToAdd: successfullyPricedItems,
+      itemToAdd: pricedItem,
     };
   }
 );

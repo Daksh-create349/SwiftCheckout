@@ -123,7 +123,7 @@ export type IdentifiedItem = z.infer<typeof IdentifiedItemSchema>;
 
 export const InterpretVoiceCommandOutputSchema = z.object({
     transcribedText: z.string().describe("The text transcribed from the audio."),
-    itemsToAdd: z.array(IdentifiedItemSchema).describe("A list of structured items to be added to the cart."),
+    itemToAdd: IdentifiedItemSchema.nullable().describe("A single structured item to be added to the cart, or null if none found."),
 });
 export type InterpretVoiceCommandOutput = z.infer<typeof InterpretVoiceCommandOutputSchema>;
 
