@@ -11,11 +11,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { PlusCircle, XCircle, Camera, Zap, AlertTriangleIcon, ScanSearch, Barcode, Loader2, Search, Edit } from 'lucide-react';
+import { PlusCircle, XCircle, Camera, Zap, AlertTriangleIcon, ScanSearch, Barcode, Loader2, Search, Edit, Mic, MicOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { identifyProductFromImage, type IdentifyProductInput, type IdentifyProductOutput } from '@/ai/flows/identify-product-flow';
-import { getProductPriceByName, type GetProductPriceByNameInput, type GetProductPriceByNameOutput } from '@/ai/flows/get-product-price-by-name-flow';
-import { generateProductImageByName, type GenerateProductImageByNameInput, type GenerateProductImageByNameOutput } from '@/ai/flows/generate-product-image-flow';
+import { getProductPriceByName, type GetProductPriceByNameInput } from '@/ai/flows/get-product-price-by-name-flow';
+import { generateProductImageByName } from '@/ai/flows/generate-product-image-flow';
+import { interpretVoiceCommand } from '@/ai/flows/interpret-voice-command-flow';
+import type { InterpretVoiceCommandInput } from '@/types/billing';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
@@ -44,6 +46,13 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
   const [isGeneratingProductImage, setIsGeneratingProductImage] = useState<boolean>(false);
   const [productImageError, setProductImageError] = useState<string | null>(null);
   const [isFetchingManualPrice, setIsFetchingManualPrice] = useState(false);
+
+  // State for voice commands
+  const [isRecording, setIsRecording] = useState(false);
+  const [isProcessingVoice, setIsProcessingVoice] = useState(false);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
 
 
   const { control, handleSubmit, watch, setValue, reset, setFocus, getValues, formState: { errors } } = useForm<ProductInputFormValues>({
@@ -337,6 +346,96 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
     overridePrice
   ]);
 
+  const startRecording = async () => {
+    setVoiceError(null);
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+        mediaRecorderRef.current.stop();
+        return;
+    }
+
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorderRef.current = new MediaRecorder(stream);
+        audioChunksRef.current = [];
+
+        mediaRecorderRef.current.ondataavailable = (event) => {
+            audioChunksRef.current.push(event.data);
+        };
+
+        mediaRecorderRef.current.onstop = async () => {
+            setIsRecording(false);
+            setIsProcessingVoice(true);
+            const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+            
+            const reader = new FileReader();
+            reader.readAsDataURL(audioBlob);
+            reader.onloadend = async () => {
+                const base64Audio = reader.result as string;
+                 if (!base64Audio) {
+                    setIsProcessingVoice(false);
+                    setVoiceError('Failed to read audio data.');
+                    return;
+                }
+                
+                try {
+                    const input: InterpretVoiceCommandInput = {
+                        audioDataUri: base64Audio,
+                        currencyCode: selectedCurrencyCode,
+                    };
+                    const result = await interpretVoiceCommand(input);
+
+                    if (result.itemsToAdd.length > 0) {
+                        toast({
+                            title: "Voice Command Processed",
+                            description: `AI heard: "${result.transcribedText}". Adding items.`,
+                        });
+                        result.itemsToAdd.forEach(item => {
+                            onAddItem(item.name, item.price, item.quantity, item.originalPrice);
+                        });
+                    } else {
+                         toast({
+                            title: "No Items Added",
+                            description: `AI heard: "${result.transcribedText}", but no items were added. Try being more specific (e.g., "Add two apples").`,
+                            duration: 7000,
+                        });
+                    }
+                } catch (error) {
+                    console.error("Error processing voice command:", error);
+                    setVoiceError((error as Error).message || "Failed to process your voice command.");
+                } finally {
+                    setIsProcessingVoice(false);
+                }
+            };
+            // Clean up stream tracks
+            stream.getTracks().forEach(track => track.stop());
+        };
+
+        mediaRecorderRef.current.start();
+        setIsRecording(true);
+    } catch (error) {
+        console.error("Error accessing microphone:", error);
+        let errorMsg = 'Could not access the microphone.';
+        if ((error as Error).name === 'NotAllowedError') {
+            errorMsg = 'Microphone permission was denied. Please enable it in browser settings.';
+        }
+        setVoiceError(errorMsg);
+    }
+  };
+
+  const stopRecording = () => {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+          mediaRecorderRef.current.stop();
+      }
+  };
+
+  const handleVoiceButtonClick = () => {
+      if (isRecording) {
+          stopRecording();
+      } else {
+          startRecording();
+      }
+  };
+
 
   const onSubmit: SubmitHandler<ProductInputFormValues> = (data) => {
     const currentProductName = identifiedProduct?.name || data.manualProductName;
@@ -387,24 +486,44 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
     if (isCameraMode) setIsCameraMode(false);
   }
 
-  const anyAILoading = isIdentifying || isFetchingManualPrice || isGeneratingProductImage;
+  const anyAILoading = isIdentifying || isFetchingManualPrice || isGeneratingProductImage || isProcessingVoice;
   const cameraActiveAndReady = isCameraMode && hasCameraPermission === true;
 
 
   return (
     <Card className="shadow-lg">
       <CardHeader>
-        <div className="flex justify-between items-center">
+        <div className="flex justify-between items-center gap-2 flex-wrap">
           <CardTitle className="flex items-center text-xl font-headline">
             <ScanSearch className="mr-2 h-6 w-6 text-primary" /> Add Product
           </CardTitle>
-          <Button variant="outline" onClick={handleToggleCameraMode} size="sm" disabled={disabled || (anyAILoading && isCameraMode)}>
-            <Camera className="mr-2 h-4 w-4" /> {isCameraMode ? 'Close Camera' : 'Scan with Camera'}
-          </Button>
+          <div className="flex items-center gap-2">
+             <Button 
+                variant="outline" 
+                onClick={handleVoiceButtonClick} 
+                size="sm" 
+                disabled={disabled || anyAILoading || isCameraMode}
+                className={cn(isRecording && "bg-destructive text-destructive-foreground hover:bg-destructive/90")}
+            >
+                {isRecording ? <MicOff className="mr-2 h-4 w-4" /> : <Mic className="mr-2 h-4 w-4" />}
+                {isRecording ? 'Stop Recording' : isProcessingVoice ? 'Processing...' : 'Voice Command'}
+            </Button>
+            <Button variant="outline" onClick={handleToggleCameraMode} size="sm" disabled={disabled || anyAILoading}>
+                <Camera className="mr-2 h-4 w-4" /> {isCameraMode ? 'Close Camera' : 'Scan with Camera'}
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
         <canvas ref={canvasRef} className="hidden"></canvas>
+        
+        {voiceError && (
+            <Alert variant="destructive" className="mt-4">
+                <AlertTriangleIcon className="h-4 w-4" />
+                <AlertTitle>Voice Command Error</AlertTitle>
+                <AlertDescription>{voiceError}</AlertDescription>
+            </Alert>
+        )}
 
         {isCameraMode ? (
           <div className="mb-4 p-4 border rounded-md bg-muted/30">

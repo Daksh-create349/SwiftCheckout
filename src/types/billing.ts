@@ -99,3 +99,38 @@ export const AnalyzeSalesOutputSchema = z.object({
 export type AnalyzeSalesInput = z.infer<typeof AnalyzeSalesInputSchema>;
 export type AnalyzeSalesOutput = z.infer<typeof AnalyzeSalesOutputSchema>;
 export type DailySales = z.infer<typeof DailySalesSchema>;
+
+
+// Schemas for Voice Command Flow
+export const InterpretVoiceCommandInputSchema = z.object({
+  audioDataUri: z
+    .string()
+    .describe(
+      "A recording of a user's voice command, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:audio/wav;base64,<encoded_data>'"
+    ),
+  currencyCode: z.string().describe('The currency code for the price estimate (e.g., USD, EUR, JPY).'),
+});
+export type InterpretVoiceCommandInput = z.infer<typeof InterpretVoiceCommandInputSchema>;
+
+
+export const IdentifiedItemSchema = z.object({
+    name: z.string().describe('The common name of the identified product.'),
+    price: z.number().describe('The estimated market price in the specified currency for the product.'),
+    quantity: z.number().describe('The quantity of the item to add.'),
+    originalPrice: z.number().describe("The original estimated price, for reference."),
+});
+export type IdentifiedItem = z.infer<typeof IdentifiedItemSchema>;
+
+export const InterpretVoiceCommandOutputSchema = z.object({
+    transcribedText: z.string().describe("The text transcribed from the audio."),
+    itemsToAdd: z.array(IdentifiedItemSchema).describe("A list of structured items to be added to the cart."),
+});
+export type InterpretVoiceCommandOutput = z.infer<typeof InterpretVoiceCommandOutputSchema>;
+
+// Schema for the AI's interpretation of the text
+export const VoiceInterpretationSchema = z.object({
+    items: z.array(z.object({
+        productName: z.string().describe("The name of the product mentioned."),
+        quantity: z.number().describe("The quantity of that product."),
+    })).describe("A list of products and quantities extracted from the user's command."),
+});
