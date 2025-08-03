@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { PlusCircle, XCircle, Camera, Zap, AlertTriangleIcon, ScanSearch, Barcode, Loader2, Search, Edit, Mic, MicOff } from 'lucide-react';
+import { PlusCircle, XCircle, Camera, Zap, AlertTriangleIcon, ScanSearch, Barcode, Loader2, Search, Edit, Mic, MicOff, ScanLine } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { identifyProductFromImage, type IdentifyProductInput, type IdentifyProductOutput } from '@/ai/flows/identify-product-flow';
 import { getProductPriceByName, type GetProductPriceByNameInput } from '@/ai/flows/get-product-price-by-name-flow';
@@ -516,7 +516,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
                 {isRecording ? 'Stop Recording' : isProcessingVoice ? 'Processing...' : 'Voice Command'}
             </Button>
             <Button variant="outline" onClick={handleToggleCameraMode} size="sm" disabled={disabled || anyAILoading}>
-                <Camera className="mr-2 h-4 w-4" /> {isCameraMode ? 'Close Camera' : 'Scan with Camera'}
+                <Camera className="mr-2 h-4 w-4" /> {isCameraMode ? 'Close Scanner' : 'Scan Product or Barcode'}
             </Button>
           </div>
         </div>
@@ -534,7 +534,8 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
 
         {isCameraMode ? (
           <div className="mb-4 p-4 border rounded-md bg-muted/30">
-            <h3 className="text-lg font-medium mb-2 text-center">Camera View</h3>
+            <h3 className="text-lg font-medium mb-2 text-center">Scanner Active</h3>
+             <p className="text-sm text-muted-foreground text-center mb-4">Center the product or barcode in the frame.</p>
             {hasCameraPermission === null && (
                 <div className="text-center">
                     <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
@@ -552,11 +553,18 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
             
             <div className={cn("relative aspect-video bg-slate-800 rounded-md overflow-hidden", !isCameraMode && "hidden")}>
                <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
+
+                {/* Scanner Overlay */}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <div className="w-3/4 h-1/2 border-4 border-primary/50 rounded-lg shadow-inner" />
+                    <ScanLine className="absolute w-3/4 h-1 text-primary animate-pulse" />
+                </div>
+
               {isIdentifying && (
                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70">
                     <Zap className="h-12 w-12 text-primary animate-pulse mb-2" />
                     <p className="text-primary-foreground font-semibold">
-                        {`Identifying Product (in ${selectedCurrencyCode})...`}
+                        {`Scanning & Identifying (in ${selectedCurrencyCode})...`}
                     </p>
                     <Skeleton className="h-4 w-3/4 mt-2 bg-slate-700" />
                     <Skeleton className="h-4 w-1/2 mt-1 bg-slate-700" />
@@ -572,7 +580,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
                 aria-label="Capture image and identify product"
               >
                 <Camera className="mr-2 h-4 w-4" />
-                {isIdentifying ? 'Processing Image...' : 'Capture Image & Identify Product'}
+                {isIdentifying ? 'Processing Scan...' : 'Scan'}
               </Button>
             )}
           </div>
@@ -668,7 +676,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
                       <span className="text-lg">/</span>
                       <Camera className="h-8 w-8"/>
                     </div>
-                    <p className="text-xs mt-2">Use 'Scan with Camera' for image or barcode identification.</p>
+                    <p className="text-xs mt-2">Use the scanner for image or barcode identification.</p>
                 </div>
             )}
             {(isFetchingManualPrice && !isCameraMode) && ( 
@@ -776,5 +784,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
     </Card>
   );
 }
+
+    
 
     
