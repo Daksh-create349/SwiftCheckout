@@ -662,9 +662,13 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
             )}
 
              {!identifiedProduct && !isCameraMode && !anyAILoading && !productImagePreviewUrl && !productImageError && (
-                 <div className="text-center py-4 text-muted-foreground border-t border-dashed mt-4 pt-4">
-                    <Barcode className="mx-auto h-8 w-8 mb-2 opacity-50"/>
-                    <p className="text-xs">Or use 'Scan with Camera' for image identification.</p>
+                 <div className="text-center py-4 text-muted-foreground border-t border-dashed mt-4 pt-4 flex flex-col items-center justify-center">
+                    <div className="flex items-center gap-2 opacity-60">
+                      <Barcode className="h-8 w-8"/>
+                      <span className="text-lg">/</span>
+                      <Camera className="h-8 w-8"/>
+                    </div>
+                    <p className="text-xs mt-2">Use 'Scan with Camera' for image or barcode identification.</p>
                 </div>
             )}
             {(isFetchingManualPrice && !isCameraMode) && ( 
@@ -772,3 +776,5 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
     </Card>
   );
 }
+
+    
