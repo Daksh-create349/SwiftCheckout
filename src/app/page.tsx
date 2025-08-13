@@ -12,6 +12,7 @@ import { CrossSellSuggestions } from '@/components/billing/CrossSellSuggestions'
 import { PaymentModal } from '@/components/billing/PaymentModal';
 import { BillHistory } from '@/components/billing/BillHistory';
 import { HowItWorks } from '@/components/billing/HowItWorks';
+import { HowItWorksModal } from '@/components/billing/HowItWorksModal';
 import { SplashScreen } from '@/components/billing/SplashScreen';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -37,7 +38,7 @@ import { Label } from '@/components/ui/label';
 import { getCrossSellSuggestions, type CrossSellSuggestionInput } from '@/ai/flows/cross-sell-suggestion';
 import { generateBillImage, type GenerateBillImageInput } from '@/ai/flows/generate-bill-image-flow';
 import { getProductPriceByName } from '@/ai/flows/get-product-price-by-name-flow';
-import { Zap, AlertTriangle, CheckCircle, Printer, Loader2, CreditCard, Download, Settings, Move3d, LineChart, Wand2 } from 'lucide-react';
+import { Zap, AlertTriangle, CheckCircle, Printer, Loader2, CreditCard, Download, Settings, Move3d, LineChart, Wand2, Info } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
@@ -54,6 +55,7 @@ export default function SwiftCheckoutPage() {
   const [isSuggestionsLoading, setIsSuggestionsLoading] = useState<boolean>(false);
   const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState<boolean>(false);
+  const [isHowItWorksModalOpen, setIsHowItWorksModalOpen] = useState<boolean>(false);
   const [isBillFinalized, setIsBillFinalized] = useState<boolean>(false);
   const [billImageDataUri, setBillImageDataUri] = useState<string | null>(null);
   const [isGeneratingBillImage, setIsGeneratingBillImage] = useState<boolean>(false);
@@ -375,6 +377,12 @@ export default function SwiftCheckoutPage() {
 };
 
   const handleAddSuggestionToCart = async (productName: string) => {
+    const existingItem = cartItems.find(item => item.name.toLowerCase() === productName.toLowerCase());
+    if (existingItem) {
+        handleUpdateQuantity(existingItem.id, existingItem.quantity + 1);
+        toast({ title: "Item Updated", description: `${productName} quantity increased.` });
+        return;
+    }
     toast({ title: `Fetching price for ${productName}...`, description: "Please wait while we get the details." });
     try {
       const priceResult = await getProductPriceByName({ productName, currencyCode: selectedCurrencyCode });
@@ -704,12 +712,17 @@ export default function SwiftCheckoutPage() {
           currencySymbol={selectedCurrencySymbol}
         />
 
+        <HowItWorksModal
+            isOpen={isHowItWorksModalOpen}
+            onClose={() => setIsHowItWorksModalOpen(false)}
+        />
+
         <footer className="mt-12 text-center text-sm text-muted-foreground">
           <p>&copy; {new Date().getFullYear()} SwiftCheckout. Efficiency at your fingertips.</p>
           <Separator className="my-2 max-w-xs mx-auto" />
-          <p className="text-xs text-muted-foreground/80">
-              Made By Daksh Srivastava
-          </p>
+          <Button variant="link" onClick={() => setIsHowItWorksModalOpen(true)} className="text-xs text-muted-foreground/80">
+            <Info className="mr-1 h-3 w-3" /> How It Works
+          </Button>
         </footer>
       </div>
     </>
