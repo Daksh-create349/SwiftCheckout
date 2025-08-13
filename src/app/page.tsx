@@ -180,12 +180,10 @@ export default function SwiftCheckoutPage() {
 
   const handleApplyDiscount = (percentage: number) => {
     setDiscountPercentage(percentage);
-    toast({ title: "Discount Updated", description: `Discount set to ${percentage}%.` });
   };
 
   const handleApplyTax = (percentage: number) => {
     setTaxPercentage(percentage);
-    toast({ title: "Tax Updated", description: `Tax rate set to ${percentage}%.` });
   };
 
   const handleFinalizeBill = async () => {
@@ -720,11 +718,14 @@ export default function SwiftCheckoutPage() {
         <footer className="mt-12 text-center text-sm text-muted-foreground">
           <p>&copy; {new Date().getFullYear()} SwiftCheckout. Efficiency at your fingertips.</p>
           <Separator className="my-2 max-w-xs mx-auto" />
-          <Button variant="link" onClick={() => setIsHowItWorksModalOpen(true)} className="text-xs text-muted-foreground/80">
+           <Button variant="link" onClick={() => setIsHowItWorksModalOpen(true)} className="text-xs text-muted-foreground/80">
             <Info className="mr-1 h-3 w-3" /> How It Works
           </Button>
+          <p className="mt-2 text-xs text-muted-foreground/60">Made By Daksh Srivastava and Sumit Shingole</p>
         </footer>
       </div>
     </>
   );
 }
+
+    
