@@ -67,22 +67,21 @@ export function DiscountTaxForm({ onApplyDiscount, onApplyTax, currentDiscount, 
               render={({ field }) => (
                 <Input 
                   id="discountPercentage" 
-                  type="number" 
-                  // Spread name, onBlur, ref. Handle value and onChange manually.
+                  type="number"
                   name={field.name}
-                  onBlur={field.onBlur}
                   ref={field.ref}
-                  value={field.value === undefined ? '' : field.value}
+                  onBlur={field.onBlur}
+                  value={field.value ?? ''}
                   onChange={e => {
                     const rawValue = e.target.value;
-                    if (rawValue === '') {
-                      field.onChange(undefined);
-                    } else {
-                      const numValue = parseFloat(rawValue);
-                      field.onChange(isNaN(numValue) ? undefined : numValue);
+                    field.onChange(rawValue === '' ? undefined : parseFloat(rawValue));
+                  }}
+                  onFocus={(e) => {
+                    if (e.target.value === '0') {
+                      e.target.select();
                     }
                   }}
-                  placeholder="e.g. 10 for 10%" 
+                  placeholder="e.g. 10" 
                   min="0" max="100"
                   aria-label="Discount Percentage"
                   disabled={disabled}
@@ -101,21 +100,21 @@ export function DiscountTaxForm({ onApplyDiscount, onApplyTax, currentDiscount, 
               render={({ field }) => (
                 <Input 
                   id="taxPercentage" 
-                  type="number" 
+                  type="number"
                   name={field.name}
-                  onBlur={field.onBlur}
                   ref={field.ref}
-                  value={field.value === undefined ? '' : field.value}
+                  onBlur={field.onBlur}
+                  value={field.value ?? ''}
                   onChange={e => {
                     const rawValue = e.target.value;
-                    if (rawValue === '') {
-                      field.onChange(undefined);
-                    } else {
-                      const numValue = parseFloat(rawValue);
-                      field.onChange(isNaN(numValue) ? undefined : numValue);
+                    field.onChange(rawValue === '' ? undefined : parseFloat(rawValue));
+                  }}
+                   onFocus={(e) => {
+                    if (e.target.value === '0') {
+                       e.target.select();
                     }
                   }}
-                  placeholder="e.g. 5 for 5%" 
+                  placeholder="e.g. 5" 
                   min="0" max="100"
                   aria-label="Tax Percentage"
                   disabled={disabled}
