@@ -285,15 +285,13 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
 
   useEffect(() => {
     const currentProductName = identifiedProduct?.name;
-    const overrideIsChecked = getValues('overridePrice');
 
     if (
       previousCurrencyCodeRef.current !== selectedCurrencyCode &&
       currentProductName &&
       !isCameraMode &&
       !isIdentifying &&
-      !isFetchingManualPrice &&
-      !overrideIsChecked
+      !isFetchingManualPrice
     ) {
       const reFetchPriceForNewCurrency = async () => {
         try {
@@ -302,10 +300,13 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
             description: `Updating AI price for ${currentProductName} to ${selectedCurrencyCode}...`
           });
           const result = await getProductPriceByName({ productName: currentProductName, currencyCode: selectedCurrencyCode });
-          if (getValues('manualProductName') === currentProductName || identifiedProduct?.name === currentProductName) {
+          
+          // Check if the product name in the form still matches the one we initiated the fetch for
+          if (getValues('manualProductName') === currentProductName) {
             setIdentifiedProduct({ name: result.name, price: result.price });
             setValue('manualPrice', result.price);
-            setValue('manualProductName', result.name);
+            // Reset override status on currency change
+            setValue('overridePrice', false); 
             toast({
               title: "Price Updated",
               description: `AI Price for ${result.name} is now ${selectedCurrencySymbol}${result.price.toFixed(2)}.`
@@ -316,7 +317,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
           } else {
              toast({
               title: "Price Update Skipped",
-              description: `Product name changed during currency update for ${currentProductName}. New price not applied automatically.`
+              description: `Product name was changed during currency update for ${currentProductName}. New price not applied.`
             });
           }
         } catch (apiError) {
@@ -342,8 +343,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
     getValues,
     toast,
     setIdentifiedProduct,
-    triggerProductImageGeneration,
-    overridePrice
+    triggerProductImageGeneration
   ]);
 
   const startRecording = async () => {
@@ -785,7 +785,3 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
     </Card>
   );
 }
-
-    
-
-    
