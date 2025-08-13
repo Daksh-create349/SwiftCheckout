@@ -25,7 +25,7 @@ import { cn } from '@/lib/utils';
 
 const FormSchema = z.object({
   manualProductName: z.string().optional(),
-  quantity: z.number().min(1, "Quantity must be at least 1"),
+  quantity: z.coerce.number().min(1, "Quantity must be at least 1"),
   manualPrice: z.number().optional(),
   overridePrice: z.boolean().optional(),
 });
@@ -59,7 +59,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
     resolver: zodResolver(FormSchema),
     defaultValues: {
       manualProductName: '',
-      quantity: 1,
+      quantity: undefined,
       overridePrice: false,
       manualPrice: undefined,
     },
@@ -136,7 +136,7 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
       setHasCameraPermission(null);
       setIdentifiedProduct(null);
       clearProductImageStates();
-      reset({ manualProductName: '', quantity: 1, overridePrice: false, manualPrice: undefined });
+      reset({ manualProductName: '', quantity: undefined, overridePrice: false, manualPrice: undefined });
   
       if (!navigator.mediaDevices?.getUserMedia) {
         const errorMsg = "Camera API is not supported by your browser.";
@@ -699,9 +699,10 @@ export function ProductInputForm({ onAddItem, selectedCurrencyCode, selectedCurr
                     <Input
                       id="quantity"
                       type="number"
+                      placeholder='1'
                       {...field}
-                      value={field.value || 1}
-                      onChange={e => field.onChange(parseInt(e.target.value,10) || 1)}
+                      value={field.value ?? ''}
+                      onChange={e => field.onChange(e.target.value)}
                       min="1"
                       aria-label="Quantity"
                       disabled={disabled || anyAILoading || (!identifiedProduct && !overridePrice && getValues('manualPrice') === undefined)}
