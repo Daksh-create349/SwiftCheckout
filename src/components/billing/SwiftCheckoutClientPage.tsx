@@ -716,10 +716,13 @@ export default function SwiftCheckoutClientPage() {
         />
 
         <footer className="mt-12 text-center text-sm text-muted-foreground">
-          <p>&copy; {new Date().getFullYear()} SwiftCheckout. Efficiency at your fingertips.</p>
-          <p className="mt-2 text-xs text-muted-foreground/60">Made By Daksh Srivastava and Sumit Shingole</p>
+            <p>&copy; {new Date().getFullYear()} SwiftCheckout. Efficiency at your fingertips.</p>
+            <Separator className="my-2 max-w-xs mx-auto" />
+            <p className="text-xs text-muted-foreground/60">Made By Daksh Srivastava and Sumit Shingole</p>
         </footer>
       </div>
     </>
   );
 }
+
+    
