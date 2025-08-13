@@ -688,7 +688,7 @@ export default function SwiftCheckoutPage() {
                       onApplyTax={handleApplyTax}
                       currentDiscount={discountPercentage}
                       currentTax={taxPercentage}
-                      disabled={isBillFinalized || isUpdatingPrices}
+                      disabled={isBillFinalized || isUpdatingPrices || cartItems.length === 0}
                       />
                   )}
                   <CrossSellSuggestions
