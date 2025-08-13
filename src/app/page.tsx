@@ -600,7 +600,7 @@ export default function SwiftCheckoutPage() {
           )}
         </header>
         
-        <HowItWorks />
+        <HowItWorks onShowModal={() => setIsHowItWorksModalOpen(true)} />
 
         <main className="flex-grow grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8 mt-8">
           <section className="lg:col-span-2 flex flex-col gap-6 md:gap-8">
@@ -717,10 +717,6 @@ export default function SwiftCheckoutPage() {
 
         <footer className="mt-12 text-center text-sm text-muted-foreground">
           <p>&copy; {new Date().getFullYear()} SwiftCheckout. Efficiency at your fingertips.</p>
-          <Separator className="my-2 max-w-xs mx-auto" />
-           <Button variant="link" onClick={() => setIsHowItWorksModalOpen(true)} className="text-xs text-muted-foreground/80">
-            <Info className="mr-1 h-3 w-3" /> How It Works
-          </Button>
           <p className="mt-2 text-xs text-muted-foreground/60">Made By Daksh Srivastava and Sumit Shingole</p>
         </footer>
       </div>

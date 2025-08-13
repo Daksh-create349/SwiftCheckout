@@ -4,7 +4,8 @@
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Camera, Search, Lightbulb, Bot, AlertTriangle, Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Camera, Search, Lightbulb, Bot, AlertTriangle, Loader2, Info } from 'lucide-react';
 import { generateShowcaseImage } from '@/ai/flows/generate-showcase-image-flow';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
@@ -31,7 +32,11 @@ const features = [
     }
 ];
 
-export function HowItWorks() {
+interface HowItWorksProps {
+  onShowModal: () => void;
+}
+
+export function HowItWorks({ onShowModal }: HowItWorksProps) {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -60,7 +65,13 @@ export function HowItWorks() {
         <div className="grid grid-cols-1 md:grid-cols-2">
             <div className="p-6 md:p-8 flex flex-col justify-center">
                 <CardHeader className="p-0 mb-4">
-                    <CardTitle className="text-2xl md:text-3xl font-bold font-headline text-primary">The Future of Checkout is Here</CardTitle>
+                    <div className="flex justify-between items-center">
+                        <CardTitle className="text-2xl md:text-3xl font-bold font-headline text-primary">The Future of Checkout is Here</CardTitle>
+                         <Button variant="link" onClick={onShowModal} className="text-sm">
+                            <Info className="mr-1 h-4 w-4" />
+                            How It Works
+                        </Button>
+                    </div>
                 </CardHeader>
                 <CardContent className="p-0">
                     <p className="text-muted-foreground mb-6">
