@@ -93,11 +93,11 @@ Generate a highly realistic image of a standard store receipt. The receipt shoul
 ${formattedItems}
 
 ------------------------------------
-Subtotal:${input.currencySymbol}${input.subtotal.toFixed(2).padStart(29)}
-Discount (${input.discountPercentage.toFixed(2)}%):${`-${input.currencySymbol}${input.discountAmount.toFixed(2)}`.padStart(22)}
-Tax (${input.taxPercentage.toFixed(2)}%):${`+${input.currencySymbol}${input.taxAmount.toFixed(2)}`.padStart(26)}
+Subtotal:${(input.currencySymbol + input.subtotal.toFixed(2)).padStart(30 - 'Subtotal:'.length)}
+Discount (${input.discountPercentage.toFixed(2)}%):${('-' + input.currencySymbol + input.discountAmount.toFixed(2)).padStart(30 - `Discount (${input.discountPercentage.toFixed(2)}%):`.length)}
+Tax (${input.taxPercentage.toFixed(2)}%):${('+' + input.currencySymbol + input.taxAmount.toFixed(2)).padStart(30 - `Tax (${input.taxPercentage.toFixed(2)}%):`.length)}
 ------------------------------------
-GRAND TOTAL:${input.currencySymbol}${input.grandTotal.toFixed(2).padStart(26)}
+GRAND TOTAL:${(input.currencySymbol + input.grandTotal.toFixed(2)).padStart(30 - 'GRAND TOTAL:'.length)}
 ************************************
 Thank you for your purchase!
 ************************************
